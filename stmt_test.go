@@ -197,5 +197,7 @@ func ExampleExec_withTx() {
 	fmt.Println("countPOI after rollback:", nbPOI)
 
 	// Output:
+	// countPOI before insert: 0
 	// Rows inserted: 1
+	// countPOI after rollback: 0
 }
