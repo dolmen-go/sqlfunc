@@ -28,20 +28,20 @@ import (
 )
 
 func ExampleExec() {
+	check := func(msg string, err error) {
+		if err != nil {
+			panic(fmt.Errorf("%s: %v", msg, err))
+		}
+	}
+
 	ctx := context.Background()
 	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		log.Printf("Open: %v", err)
-		return
-	}
+	check("Open", err)
 	defer db.Close()
 
 	// POI = Point of Interest
 	_, err = db.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
-	if err != nil {
-		log.Printf("Create table: %v", err)
-		return
-	}
+	check("Create table", err)
 
 	// newPOI is the function that will call the INSERT statement
 	var newPOI func(ctx context.Context, lat float32, lon float32, name string) (sql.Result, error)
@@ -50,18 +50,12 @@ func ExampleExec() {
 		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
 		&newPOI,
 	)
-	if err != nil {
-		log.Printf("Prepare: %v", err)
-		return
-	}
+	check("Prepare newPOI", err)
 	defer closeStmt()
 
 	// To call the prepared statement we use the strongly typed function
 	_, err = newPOI(ctx, 48.8016, 2.1204, "Château de Versailles")
-	if err != nil {
-		log.Printf("newPOI: %v", err)
-		return
-	}
+	check("newPOI", err)
 
 	var name string
 	err = db.QueryRow(`` +
@@ -70,10 +64,8 @@ func ExampleExec() {
 		` WHERE lat BETWEEN 48.8015 AND 48.8017` +
 		` AND lon BETWEEN 2.1203 AND 2.1205`,
 	).Scan(&name)
-	if err != nil {
-		log.Printf("Query: %v", err)
-		return
-	}
+	check("Query", err)
+
 	fmt.Println(name)
 
 	var getPOICoord func(ctx context.Context, name string) (lat float64, lon float64, err error)
@@ -84,10 +76,7 @@ func ExampleExec() {
 			` WHERE name = ?`,
 		&getPOICoord,
 	)
-	if err != nil {
-		log.Printf("Prepare: %v", err)
-		return
-	}
+	check("Prepare getPOICoord", err)
 	defer closeStmt()
 
 	_, _, err = getPOICoord(ctx, "Trifoully-les-Oies")
@@ -110,20 +99,20 @@ func ExampleExec() {
 
 // ExampleExec_withTx shows support for transactions.
 func ExampleExec_withTx() {
+	check := func(msg string, err error) {
+		if err != nil {
+			panic(fmt.Errorf("%s: %v", msg, err))
+		}
+	}
+
 	ctx := context.Background()
 	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		log.Println("Open:", err)
-		return
-	}
+	check("Open", err)
 	defer db.Close()
 
 	// POI = Point of Interest
 	_, err = db.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
-	if err != nil {
-		log.Println("Create table:", err)
-		return
-	}
+	check("Create table", err)
 
 	var countPOI func(ctx context.Context) (int64, error)
 	closeCountPOI, err := sqlfunc.QueryRow(
@@ -131,17 +120,12 @@ func ExampleExec_withTx() {
 		`SELECT COUNT(*) FROM poi`,
 		&countPOI,
 	)
-	if err != nil {
-		log.Println("Prepare countPOI:", err)
-		return
-	}
+	check("Prepare countPOI", err)
 	defer closeCountPOI()
 
 	nbPOI, err := countPOI(ctx)
-	if err != nil {
-		log.Println("countPOI:", err)
-		return
-	}
+	check("countPOI", err)
+
 	fmt.Println("countPOI before insert:", nbPOI)
 
 	var insertPOI func(ctx context.Context, tx *sql.Tx, lat, lon float64, name string) (sql.Result, error)
@@ -150,30 +134,18 @@ func ExampleExec_withTx() {
 		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
 		&insertPOI,
 	)
-	if err != nil {
-		log.Println("Prepare insertPOI:", err)
-		return
-	}
+	check("Prepare insertPOI", err)
 	defer closeInsertPOI()
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
-	if err != nil {
-		log.Println("BeginTx:", err)
-		return
-	}
+	check("BeginTx", err)
 	defer tx.Rollback()
 
 	res, err := insertPOI(ctx, tx, 48.8016, 2.1204, "Château de Versailles")
-	if err != nil {
-		log.Println("newPOI:", err)
-		return
-	}
+	check("newPOI", err)
 
 	nbRows, err := res.RowsAffected()
-	if err != nil {
-		log.Println("RowsAffected:", err)
-		return
-	}
+	check("RowsAffected", err)
 
 	fmt.Println("Rows inserted:", nbRows)
 
@@ -190,10 +162,8 @@ func ExampleExec_withTx() {
 	tx.Rollback()
 
 	nbPOI, err = countPOI(ctx)
-	if err != nil {
-		log.Println("countPOI after rollback:", err)
-		return
-	}
+	check("countPOI after rollback", err)
+
 	fmt.Println("countPOI after rollback:", nbPOI)
 
 	// Output:
