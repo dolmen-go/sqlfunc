@@ -33,8 +33,16 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
-	if fnType.NumIn() < 1 || fnType.In(0) != typeContext {
+	numIn := fnType.NumIn()
+	if numIn < 1 || fnType.In(0) != typeContext {
 		panic("func first arg must be a context.Context")
+	}
+	// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
+	withTx := false
+	var firstArg = 1
+	if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
+		withTx = true
+		firstArg = 2
 	}
 	if fnType.NumOut() != 2 || fnType.Out(0) != typeResult || fnType.Out(1) != typeError {
 		panic("func must return (sql.Result, error)")
@@ -47,14 +55,19 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 
 	fn := func(in []reflect.Value) []reflect.Value {
 		ctx := in[0].Interface().(context.Context)
+		stmtTx := stmt
+		if withTx && !in[1].IsNil() {
+			stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
+			defer stmtTx.Close()
+		}
 		var args []interface{}
-		if len(in) > 1 {
-			args = make([]interface{}, len(in)-1)
-			for i, a := range in[1:] {
+		if len(in) > firstArg {
+			args = make([]interface{}, len(in)-firstArg)
+			for i, a := range in[firstArg:] {
 				args[i] = a.Interface()
 			}
 		}
-		r, err := stmt.ExecContext(ctx, args...)
+		r, err := stmtTx.ExecContext(ctx, args...)
 		return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
 	}
 

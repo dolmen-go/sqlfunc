@@ -107,3 +107,95 @@ func ExampleExec() {
 	// Château de Versailles
 	// 48.8016, 2.1204
 }
+
+// ExampleExec_withTx shows support for transactions.
+func ExampleExec_withTx() {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		log.Println("Open:", err)
+		return
+	}
+	defer db.Close()
+
+	// POI = Point of Interest
+	_, err = db.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
+	if err != nil {
+		log.Println("Create table:", err)
+		return
+	}
+
+	var countPOI func(ctx context.Context) (int64, error)
+	closeCountPOI, err := sqlfunc.QueryRow(
+		ctx, db,
+		`SELECT COUNT(*) FROM poi`,
+		&countPOI,
+	)
+	if err != nil {
+		log.Println("Prepare countPOI:", err)
+		return
+	}
+	defer closeCountPOI()
+
+	nbPOI, err := countPOI(ctx)
+	if err != nil {
+		log.Println("countPOI:", err)
+		return
+	}
+	fmt.Println("countPOI before insert:", nbPOI)
+
+	var insertPOI func(ctx context.Context, tx *sql.Tx, lat, lon float64, name string) (sql.Result, error)
+	closeInsertPOI, err := sqlfunc.Exec(
+		ctx, db,
+		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
+		&insertPOI,
+	)
+	if err != nil {
+		log.Println("Prepare insertPOI:", err)
+		return
+	}
+	defer closeInsertPOI()
+
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		log.Println("BeginTx:", err)
+		return
+	}
+	defer tx.Rollback()
+
+	res, err := insertPOI(ctx, tx, 48.8016, 2.1204, "Château de Versailles")
+	if err != nil {
+		log.Println("newPOI:", err)
+		return
+	}
+
+	nbRows, err := res.RowsAffected()
+	if err != nil {
+		log.Println("RowsAffected:", err)
+		return
+	}
+
+	fmt.Println("Rows inserted:", nbRows)
+
+	/*
+		// FIXME count here too
+		nbPOI, err = countPOI(ctx)
+		if err != nil {
+			log.Println("countPOI after insert:", err)
+			return
+		}
+		fmt.Println("countPOI after insert:", nbPOI)
+	*/
+
+	tx.Rollback()
+
+	nbPOI, err = countPOI(ctx)
+	if err != nil {
+		log.Println("countPOI after rollback:", err)
+		return
+	}
+	fmt.Println("countPOI after rollback:", nbPOI)
+
+	// Output:
+	// Rows inserted: 1
+}

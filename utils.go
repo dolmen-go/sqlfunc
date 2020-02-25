@@ -27,10 +27,16 @@ type PrepareConn interface {
 	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 }
 
+// txStmt is a subset of *sql.Tx.
+type txStmt interface {
+	StmtContext(ctx context.Context, stmt *sql.Stmt) *sql.Stmt
+}
+
 var (
 	typeContext = reflect.TypeOf(new(context.Context)).Elem()
 	typeResult  = reflect.TypeOf(new(sql.Result)).Elem()
 	typeError   = reflect.TypeOf(new(error)).Elem()
 	typeScanner = reflect.TypeOf(new(sql.Scanner)).Elem()
 	typeRows    = reflect.TypeOf(new(*sql.Rows)).Elem()
+	typeTxStmt  = reflect.TypeOf(new(txStmt)).Elem()
 )
