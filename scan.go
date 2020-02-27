@@ -98,7 +98,12 @@ func Scan(fnPtr interface{}) {
 //
 // `callback` receives the scanned columns values as arguments and may return an error to stop iterating.
 func ForEach(rows *sql.Rows, callback interface{}) (err error) {
-	defer rows.Close()
+	defer func() {
+		e := rows.Close()
+		if err == nil {
+			err = e
+		}
+	}()
 
 	fnType := reflect.TypeOf(callback)
 	if fnType.Kind() != reflect.Func {
@@ -130,7 +135,8 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 		if err != nil {
 			return err // TODO wrap
 		}
-		if err, isError := fn.Call(fnArgs)[0].Interface().(error); isError {
+		var isError bool
+		if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
 			return err // user error: don't wrap
 		}
 	}
