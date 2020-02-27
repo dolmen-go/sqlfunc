@@ -46,20 +46,18 @@ func ExampleForEach() {
 		return
 	}
 
-	var values []int
-	err = sqlfunc.ForEach(rows, func(n int) error {
-		values = append(values, n)
-		return nil
+	err = sqlfunc.ForEach(rows, func(n int) (_ error) {
+		fmt.Println(n)
+		return
 	})
 	if err != nil {
 		log.Printf("ScanRows: %v", err)
 		return
 	}
 
-	fmt.Println(values)
-
 	// Output:
-	// [1 2]
+	// 1
+	// 2
 }
 
 func ExampleScan() {
