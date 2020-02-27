@@ -130,6 +130,99 @@ func ExampleScan() {
 	// [a b]
 }
 
+func BenchmarkForEach(b *testing.B) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		log.Printf("Open: %v", err)
+		return
+	}
+	defer db.Close()
+
+	const nbRows = 500
+
+	var query = "SELECT 1"
+	for i := 2; i <= nbRows; i++ {
+		query += fmt.Sprint(" UNION ALL SELECT ", i)
+	}
+	stmt, err := db.PrepareContext(ctx, query)
+	defer stmt.Close()
+
+	values := make([]int, 0, nbRows)
+
+	b.Run("manual", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			rows, err := stmt.Query()
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			values = values[:0]
+			for rows.Next() {
+				var n int
+				if err = rows.Scan(&n); err != nil {
+					b.Error(err)
+					break
+				}
+				values = append(values, n)
+			}
+			if err = rows.Err(); err != nil {
+				b.Error(err)
+			}
+			if err = rows.Close(); err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+
+	b.Run("sqlfunc.ForEach", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			rows, err := stmt.Query()
+			if err != nil {
+				b.Error(err)
+				break
+			}
+			values = values[:0]
+			err = sqlfunc.ForEach(rows, func(n int) {
+				values = append(values, n)
+			})
+			if err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+
+	b.Run("sqlfunc.ForEach-err", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			rows, err := stmt.Query()
+			if err != nil {
+				b.Error(err)
+				break
+			}
+			values = values[:0]
+			err = sqlfunc.ForEach(rows, func(n int) error {
+				values = append(values, n)
+				return nil
+			})
+			if err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+}
+
 func BenchmarkScan(b *testing.B) {
 	ctx := context.Background()
 	db, err := sql.Open("sqlite3", ":memory:")
