@@ -101,7 +101,7 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 	defer func() {
 		e := rows.Close()
 		if err == nil {
-			err = e
+			err = e // TODO wrap
 		}
 	}()
 
@@ -113,8 +113,11 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 	if numIn == 0 {
 		panic("callback must accept at least one argument")
 	}
-	if fnType.NumOut() != 1 || fnType.Out(0) != typeError {
-		panic("callback must return error")
+	withError := fnType.NumOut() > 0
+	if withError {
+		if fnType.NumOut() != 1 || fnType.Out(0) != typeError {
+			panic("callback may only return an error")
+		}
 	}
 	fn := reflect.ValueOf(callback)
 	if fn.IsNil() {
@@ -135,9 +138,13 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 		if err != nil {
 			return err // TODO wrap
 		}
-		var isError bool
-		if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
-			return err // user error: don't wrap
+		if withError {
+			var isError bool
+			if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
+				return err // user error: don't wrap
+			}
+		} else {
+			fn.Call(fnArgs)
 		}
 	}
 
