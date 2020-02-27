@@ -94,9 +94,9 @@ func Scan(fnPtr interface{}) {
 	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
 }
 
-// ForEach iterates an *sql.Rows, scan the values of the row and calls the given callback function with the values.
+// ForEach iterates an *sql.Rows, scans the values of the row and calls the given callback function with the values.
 //
-// `callback` receives the scanned columns values as arguments and may return an error to stop iterating.
+// The callback receives the scanned columns values as arguments and may return an error to stop iterating.
 func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 	defer func() {
 		e := rows.Close()
