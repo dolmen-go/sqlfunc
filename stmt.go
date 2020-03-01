@@ -123,8 +123,16 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
-	if fnType.NumIn() < 1 || fnType.In(0) != typeContext {
+	numIn := fnType.NumIn()
+	if numIn < 1 || fnType.In(0) != typeContext {
 		panic("func first arg must be a context.Context")
+	}
+	// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
+	withTx := false
+	var firstArg = 1
+	if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
+		withTx = true
+		firstArg = 2
 	}
 	numOut := fnType.NumOut()
 	if numOut < 2 {
@@ -141,10 +149,15 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface
 
 	fn := func(in []reflect.Value) []reflect.Value {
 		ctx := in[0].Interface().(context.Context)
+		stmtTx := stmt
+		if withTx && !in[1].IsNil() {
+			stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
+			defer stmtTx.Close()
+		}
 		var args []interface{}
-		if len(in) > 1 {
-			args = make([]interface{}, len(in)-1)
-			for i, a := range in[1:] {
+		if len(in) > firstArg {
+			args = make([]interface{}, len(in)-firstArg)
+			for i, a := range in[firstArg:] {
 				args[i] = a.Interface()
 			}
 		}
@@ -156,7 +169,7 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface
 			outValues[i] = ptr.Elem()
 		}
 
-		err := stmt.QueryRowContext(ctx, args...).Scan(out...)
+		err := stmtTx.QueryRowContext(ctx, args...).Scan(out...)
 		outValues[numOut-1] = reflect.ValueOf(&err).Elem()
 		return outValues
 	}
