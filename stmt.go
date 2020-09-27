@@ -21,7 +21,7 @@ import (
 	"reflect"
 )
 
-// Exec prepares an SQL statement and creates a function wrapping sql.Stmt.Exec.
+// Exec prepares an SQL statement and creates a function wrapping sql.Stmt.ExecContext.
 //
 // fnPtr is a pointer to a func variable. The function signature tells how it will be called.
 //
@@ -31,21 +31,29 @@ import (
 //
 // The function will return an sql.Result and an error.
 //
-// Examples:
+// The returned func 'close' must be called once the statement is not needed anymore.
 //
-//    var (
-//         f func(ctx context.Context, arg1 int64, arg2 string, arg3 sql.NullInt, arg4 *sql.Time) (sql.Result, error)
-//         fTx func(ctx context, *sql.Tx, arg1 int64) (sql.Result, error)
-//    )
+// Example:
+//
+//    var f func(ctx context.Context, arg1 int64, arg2 string, arg3 sql.NullInt, arg4 *sql.Time) (sql.Result, error)
 //    close1, err = sqlfunc.Exec(ctx, db, "SELECT ?, ?, ?, ?", &f)
 //    // if err != nil ...
 //    defer close1()
+//    res, err = f(ctx, 1, "a", sql.NullInt{Valid: false}, time.Now())
+//
+// Example with transaction:
+//
+//    var fTx func(ctx context, *sql.Tx, arg1 int64) (sql.Result, error)
 //    close2, err = sqlfunc.Exec(ctx, db, "SELECT ?", &fTx)
 //    // if err != nil ...
 //    defer close2()
-//    res, err = f(ctx, 1, "a", sql.NullInt{Valid: false}, time.Now())
 //
-// The returned func 'close' must be called once the statement is not needed anymore.
+//    tx, err := db.BeginTxt()
+//    // if err != nil ...
+//    res, err := fTx(ctx, tx, 123)
+//    // if err != nil ...
+//    err = tx.Commit()
+//    // if err != nil ...
 func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
 	if vPtr.Type().Kind() != reflect.Ptr {
@@ -101,7 +109,7 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 	return stmt.Close, nil
 }
 
-// QueryRow prepares an SQL statement and creates a function wrapping sql.Stmt.QueryRow and sql.Row.Scan.
+// QueryRow prepares an SQL statement and creates a function wrapping sql.Stmt.QueryRowContext and sql.Row.Scan.
 //
 // fnPtr is a pointer to a func variable. The function signature tells how it will be called.
 //
@@ -111,6 +119,7 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 //
 // The function will return values scanned from the Row and an error.
 //
+// The returned func 'close' must be called once the statement is not needed anymore.
 func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
 	if vPtr.Type().Kind() != reflect.Ptr {
@@ -179,6 +188,17 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface
 	return stmt.Close, nil
 }
 
+// Query prepares an SQL statement and creates a function wrapping sql.Stmt.QueryContext.
+//
+// fnPtr is a pointer to a func variable. The function signature tells how it will be called.
+//
+// The first argument is a context.Context.
+// If an sql.Tx is given as the second argument, the statement will be localized to the transaction (tx.StmtContext(stmt)).
+// The following arguments will be given as arguments to stmt.QueryRowContext.
+//
+// The function will return an *sql.Rows and an error.
+//
+// The returned func 'close' must be called once the statement is not needed anymore.
 func Query(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
 	if vPtr.Type().Kind() != reflect.Ptr {

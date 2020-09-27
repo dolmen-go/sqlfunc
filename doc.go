@@ -15,4 +15,18 @@ limitations under the License.
 */
 
 // Package sqlfunc provides utilities to wrap SQL prepared statements with strongly typed Go functions.
+//
+// You just have to define the function signature you need:
+//
+//    var whoami func() (string, error)
+//
+// and the SQL statement that this function wraps:
+//
+//    close, err := sqlfunc.QueryRow(ctx, db, `SELECT USER()`)  // MySQL example
+//    defer close()
+//
+// You can now use the function:
+//
+//    user, err := whoami()
+//    fmt.Println("Connected as", user)
 package sqlfunc
