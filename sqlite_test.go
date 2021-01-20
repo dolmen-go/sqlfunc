@@ -1,5 +1,5 @@
 package sqlfunc_test
 
-import _ "github.com/mattn/go-sqlite3"
+import _ "modernc.org/sqlite"
 
-var sqliteDriver = "sqlite3"
+var sqliteDriver = "sqlite"
