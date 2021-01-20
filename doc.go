@@ -22,7 +22,7 @@ limitations under the License.
 //
 // and the SQL statement that this function wraps:
 //
-//    close, err := sqlfunc.QueryRow(ctx, db, `SELECT USER()`)  // MySQL example
+//    close, err := sqlfunc.QueryRow(ctx, db, `SELECT USER()`, &whoami)  // MySQL example
 //    defer close()
 //
 // You can now use the function:
