@@ -23,14 +23,12 @@ import (
 	"log"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/dolmen-go/sqlfunc"
 )
 
 func ExampleForEach() {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
 		return
@@ -64,7 +62,7 @@ func ExampleForEach() {
 
 func ExampleScan() {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
 		return
@@ -132,7 +130,7 @@ func ExampleScan() {
 
 func BenchmarkForEach(b *testing.B) {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
 		return
@@ -225,7 +223,7 @@ func BenchmarkForEach(b *testing.B) {
 
 func BenchmarkScan(b *testing.B) {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
 		return

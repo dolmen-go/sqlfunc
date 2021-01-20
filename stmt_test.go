@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"log"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/dolmen-go/sqlfunc"
 )
 
@@ -35,7 +33,7 @@ func ExampleExec() {
 	}
 
 	ctx := context.Background()
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open(sqliteDriver, ":memory:")
 	check("Open", err)
 	defer db.Close()
 
@@ -106,7 +104,7 @@ func ExampleExec_withTx() {
 	}
 
 	ctx := context.Background()
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open(sqliteDriver, ":memory:")
 	check("Open", err)
 	defer db.Close()
 
