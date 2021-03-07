@@ -111,12 +111,12 @@ func ExampleScan() {
 
 	var values2 []string
 	for rows.Next() {
-		n, err := scan2(rows)
+		s, err := scan2(rows)
 		if err != nil {
 			log.Printf("Scan2: %v", err)
 			return
 		}
-		values2 = append(values2, n)
+		values2 = append(values2, s)
 	}
 	if err = rows.Err(); err != nil {
 		log.Printf("Next2: %v", err)
