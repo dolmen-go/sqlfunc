@@ -1,0 +1,34 @@
+name: Test and coverage
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version:
+          - 1.15.x
+          - 1.16.x
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - uses: actions/cache@v2
+        with:
+          # https://github.com/mvdan/github-actions-golang#how-do-i-set-up-caching-between-builds
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-{{ hashFile('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Run coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Upload coverage to Codecov
+        run: bash <(curl -s https://codecov.io/bash)
