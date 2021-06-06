@@ -22,6 +22,7 @@ jobs:
         with:
           fetch-depth: 2
       - uses: actions/cache@v2
+        if: matrix.os != 'windows-latest'
         with:
           # https://github.com/mvdan/github-actions-golang#how-do-i-set-up-caching-between-builds
           path: ~/go/pkg/mod
