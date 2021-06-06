@@ -30,6 +30,11 @@ jobs:
             ${{ runner.os }}-go-
       - name: Run coverage
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
-      - name: Upload coverage to Codecov
+      - name: Upload coverage to Codecov (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: bash <(curl -s https://codecov.io/bash)
+      - name: Upload coverage to Codecov (Windows)
+        if: matrix.os == 'windows-latest'
+        run:
+          - choco install codecov
+          - codecov.exe -f coverage.out
