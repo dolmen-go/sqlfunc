@@ -29,7 +29,7 @@ func TestSQLiteVersion(t *testing.T) {
 	}
 
 	t.Logf(
-		"%s (driver: %s, package %s)",
+		"SQLite version %s (driver %q, package %q)",
 		version, sqliteDriver, reflect.TypeOf(db.Driver()).Elem().PkgPath(),
 	)
 }
