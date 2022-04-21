@@ -119,6 +119,11 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 			panic("callback may only return an error")
 		}
 	}
+	inTypes := make([]reflect.Type, numIn, numIn)
+	for i := 0; i < numIn; i++ {
+		inTypes[i] = fnType.In(i)
+	}
+
 	fn := reflect.ValueOf(callback)
 	if fn.IsNil() {
 		panic("callback must be non-nil")
@@ -129,7 +134,7 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 
 	for rows.Next() {
 		for i := 0; i < numIn; i++ {
-			ptr := reflect.New(fnType.In(i))
+			ptr := reflect.New(inTypes[i])
 			scanners[i] = ptr.Interface()
 			fnArgs[i] = ptr.Elem()
 		}
