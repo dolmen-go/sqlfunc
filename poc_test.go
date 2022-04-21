@@ -2,10 +2,8 @@ package sqlfunc_test
 
 import (
 	"go/ast"
-	"go/printer"
 	"go/token"
 	"go/types"
-	"strings"
 	"testing"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -60,8 +58,7 @@ func TestScanSrc(t *testing.T) {
 				}
 
 				// package functions
-				nv, isSelector := ti.Selections[s]
-				if isSelector {
+				if _, isSelector := ti.Selections[s]; isSelector {
 					return
 				}
 				pkgName := ti.Uses[s.X.(*ast.Ident)].(*types.PkgName)
@@ -84,9 +81,12 @@ func TestScanSrc(t *testing.T) {
 				case "ForEach":
 					// Function expected:
 					// - literal
-					// - identifier
-					return false
+					// - identifier pointing to a func type
+					genForEach(t, pkg, ti.TypeOf(arg).(*types.Signature))
+					// As the argument might be a func literal, we want to go deeper in the AST
+					return true
 				default:
+					deeper = false // Skip processing the arguments (just for speed)
 					//
 					fnPtrArg, ok := arg.(*ast.UnaryExpr)
 					if !ok || fnPtrArg.Op != token.AND {
@@ -96,7 +96,7 @@ func TestScanSrc(t *testing.T) {
 							s.Sel.Name,
 							len(c.Args)-1,
 						)
-						return false // Do not go deeper
+						return
 					}
 					ident := fnPtrArg.X.(*ast.Ident)
 					if ident.Obj.Kind != ast.Var {
@@ -106,31 +106,31 @@ func TestScanSrc(t *testing.T) {
 							s.Sel.Name,
 							len(c.Args)-1,
 						)
-						return false
+						return
 					}
-					// t.Log(astutil.NodeDescription(ident.Obj))
-					t.Logf("%#v", ident)
-					t.Logf("%#v", ident.Obj)
-					t.Logf("%#v", ident.Obj.Decl.(*ast.ValueSpec))
-					identType := ident.Obj.Decl.(*ast.ValueSpec).Type
-					funcType, isFuncType := identType.(*ast.FuncType)
-					if !isFuncType {
-						t.Logf("%s %s.%s SKIP (%s is not function)",
+					typ := ti.ObjectOf(ident).Type()
+					sig, isSignature := typ.(*types.Signature)
+					if !isSignature {
+						t.Logf("%s %s.%s SKIP (%s is not function variable)",
 							pkg.Fset.Position(c.Pos()),
 							path,
 							s.Sel.Name,
 							ident.Name,
 						)
 					}
-					t.Logf("%s %#v", ident.Name, funcType)
-					var sb strings.Builder
-					printer.Fprint(&sb, pkg.Fset, funcType)
-					t.Logf("%s %s", ident.Name, sb.String())
+					// t.Logf("%#v", typ)
+					gen(t, pkg, s.Sel.Name, sig)
 				}
-
-				_ = nv
-				return false // Do not go deeper
+				return
 			}, nil)
 		}
 	}
+}
+
+func gen(tb testing.TB, pkg *packages.Package, f string, sig *types.Signature) {
+	tb.Log(pkg.Name, f, sig)
+}
+
+func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) {
+	tb.Log(pkg.Name, "ForEach", sig)
 }
