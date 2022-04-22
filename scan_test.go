@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/dolmen-go/sqlfunc"
 )
@@ -58,6 +59,38 @@ func ExampleForEach() {
 	// 1
 	// 2
 	// Done.
+}
+
+func TestForEachMulti(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Printf("Open: %v", err)
+		return
+	}
+	defer db.Close()
+
+	start := time.Now()
+	for i := 0; i < 10; i++ {
+		rows, err := db.QueryContext(ctx, ``+
+			`SELECT 1`+
+			` UNION ALL`+
+			` SELECT 2`)
+		if err != nil {
+			t.Errorf("Query: %v", err)
+			return
+		}
+
+		err = sqlfunc.ForEach(rows, func(n int) error {
+			t.Log(n)
+			return nil
+		})
+		if err != nil {
+			t.Errorf("ScanRows: %v", err)
+			return
+		}
+		t.Log(time.Since(start))
+	}
 }
 
 func ExampleScan() {

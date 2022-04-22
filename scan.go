@@ -101,28 +101,35 @@ func Scan(fnPtr interface{}) {
 // rows are closed before returning.
 func ForEach(rows *sql.Rows, callback interface{}) error {
 	fnType := reflect.TypeOf(callback)
-	if fnType.Kind() != reflect.Func {
-		panic("callback must be a func")
-	}
-	numIn := fnType.NumIn()
-	if numIn == 0 {
-		panic("callback must accept at least one argument")
-	}
-	withError := fnType.NumOut() > 0
-	if withError {
-		if fnType.NumOut() != 1 || fnType.Out(0) != typeError {
-			panic("callback may only return an error")
-		}
-	}
-	inTypes := make([]reflect.Type, numIn, numIn)
-	for i := 0; i < numIn; i++ {
-		inTypes[i] = fnType.In(i)
-	}
+	f := registry.ForEach.Get(fnType)
+	if f == nil {
 
-	return (&runForEach{
-		inTypes:   inTypes,
-		withError: withError,
-	}).run(rows, callback)
+		if fnType.Kind() != reflect.Func {
+			panic("callback must be a func")
+		}
+		numIn := fnType.NumIn()
+		if numIn == 0 {
+			panic("callback must accept at least one argument")
+		}
+		withError := fnType.NumOut() > 0
+		if withError {
+			if fnType.NumOut() != 1 || fnType.Out(0) != typeError {
+				panic("callback may only return an error")
+			}
+		}
+		inTypes := make([]reflect.Type, numIn, numIn)
+		for i := 0; i < numIn; i++ {
+			inTypes[i] = fnType.In(i)
+		}
+
+		f = (&runForEach{
+			inTypes:   inTypes,
+			withError: withError,
+		}).run
+		// Register in the background
+		go registry.ForEach.Register(callback, f)
+	}
+	return f(rows, callback)
 }
 
 type runForEach struct {

@@ -9,12 +9,11 @@ import (
 
 // Ř is the private registry used by the sqlfunc monomorphizer.
 //var Ř privateRegistry
+var registry privateRegistry
 
-/*
 func init() {
-	Ř.ForEach.r = make(map[reflect.Type]funcForEach)
+	registry.ForEach.r = make(map[reflect.Type]funcForEach)
 }
-*/
 
 type privateRegistry struct {
 	ForEach registryForEach
