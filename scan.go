@@ -97,14 +97,9 @@ func Scan(fnPtr interface{}) {
 // ForEach iterates an *sql.Rows, scans the values of the row and calls the given callback function with the values.
 //
 // The callback receives the scanned columns values as arguments and may return an error to stop iterating.
-func ForEach(rows *sql.Rows, callback interface{}) (err error) {
-	defer func() {
-		e := rows.Close()
-		if err == nil {
-			err = e // TODO wrap
-		}
-	}()
-
+//
+// rows are closed before returning.
+func ForEach(rows *sql.Rows, callback interface{}) error {
 	fnType := reflect.TypeOf(callback)
 	if fnType.Kind() != reflect.Func {
 		panic("callback must be a func")
@@ -124,26 +119,47 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 		inTypes[i] = fnType.In(i)
 	}
 
+	return (&runForEach{
+		inTypes:   inTypes,
+		withError: withError,
+	}).run(rows, callback)
+}
+
+type runForEach struct {
+	inTypes   []reflect.Type
+	withError bool
+}
+
+func (r *runForEach) run(rows *sql.Rows, callback interface{}) (err error) {
+	defer func() {
+		e := rows.Close()
+		if err == nil {
+			err = e // TODO wrap
+		}
+	}()
+
 	fn := reflect.ValueOf(callback)
 	if fn.IsNil() {
 		panic("callback must be non-nil")
 	}
 
+	numIn := len(r.inTypes)
 	scanners := make([]interface{}, numIn)
 	fnArgs := make([]reflect.Value, numIn)
 
 	for rows.Next() {
 		for i := 0; i < numIn; i++ {
-			ptr := reflect.New(inTypes[i])
+			ptr := reflect.New(r.inTypes[i])
 			scanners[i] = ptr.Interface()
 			fnArgs[i] = ptr.Elem()
 		}
 
 		err = rows.Scan(scanners...)
 		if err != nil {
-			return // TODO wrap
+			// TODO wrap err
+			return
 		}
-		if withError {
+		if r.withError {
 			var isError bool
 			if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
 				return // user error: don't wrap
