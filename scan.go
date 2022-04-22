@@ -141,17 +141,18 @@ func ForEach(rows *sql.Rows, callback interface{}) (err error) {
 
 		err = rows.Scan(scanners...)
 		if err != nil {
-			return err // TODO wrap
+			return // TODO wrap
 		}
 		if withError {
 			var isError bool
 			if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
-				return err // user error: don't wrap
+				return // user error: don't wrap
 			}
 		} else {
 			fn.Call(fnArgs)
 		}
 	}
 
-	return rows.Err() // TODO wrap
+	err = rows.Err() // TODO wrap
+	return
 }
