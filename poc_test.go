@@ -148,12 +148,16 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 	// FIXME We should check if all types of args are available at the package scope (not types defined locally in a function)
 	// and skip because we will not be able to generate code that reference those types
 
-	var withError bool
+	var withError, withBool bool
 	switch sig.Results().Len() {
 	case 0:
 	case 1:
 		if sig.Results().At(0).Type().String() == "error" {
 			withError = true
+			break
+		}
+		if sig.Results().At(0).Type().String() == "bool" {
+			withBool = true
 			break
 		}
 		fallthrough
@@ -176,6 +180,7 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 	data := map[string]any{
 		"Type":      sig.String(),
 		"WithError": withError,
+		"WithBool":  withBool,
 		"Vars":      strings.Join(vars, "\n\t\t\t"),
 		"Args":      strings.Join(args, ", "),
 		"ArgsPtr":   "&" + strings.Join(args, ", &"),
@@ -199,6 +204,10 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 		}
 {{- if .WithError}}
 		if err = cb({{.Args}}); err != nil {
+			return
+		}
+{{- else if .WithBool}}
+		if !cb({{.Args}}) {
 			return
 		}
 {{- else}}
