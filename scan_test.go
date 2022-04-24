@@ -141,35 +141,42 @@ func ExampleForEach_returnError() {
 }
 
 func TestForEachMulti(t *testing.T) {
-	ctx := context.Background()
-	db, err := sql.Open(sqliteDriver, ":memory:")
-	if err != nil {
-		log.Printf("Open: %v", err)
-		return
-	}
-	defer db.Close()
-
-	start := time.Now()
-	for i := 0; i < 10; i++ {
-		rows, err := db.QueryContext(ctx, ``+
-			`SELECT 1`+
-			` UNION ALL`+
-			` SELECT 2`)
+	testForEachMulti := func(t *testing.T) {
+		ctx := context.Background()
+		db, err := sql.Open(sqliteDriver, ":memory:")
 		if err != nil {
-			t.Errorf("Query: %v", err)
+			log.Printf("Open: %v", err)
 			return
 		}
+		defer db.Close()
 
-		err = sqlfunc.ForEach(rows, func(n int) error {
-			t.Log(n)
-			return nil
-		})
-		if err != nil {
-			t.Errorf("ScanRows: %v", err)
-			return
+		start := time.Now()
+		for i := 0; i < 10; i++ {
+			rows, err := db.QueryContext(ctx, ``+
+				`SELECT 1`+
+				` UNION ALL`+
+				` SELECT 2`)
+			if err != nil {
+				t.Errorf("Query: %v", err)
+				return
+			}
+
+			err = sqlfunc.ForEach(rows, func(n int) error {
+				t.Log(n)
+				return nil
+			})
+			if err != nil {
+				t.Errorf("ScanRows: %v", err)
+				return
+			}
+			t.Log(time.Since(start))
 		}
-		t.Log(time.Since(start))
 	}
+
+	sqlfunc.InternalRegistry.ForEach.Disable(true)
+	t.Run("registryDISABLED", testForEachMulti)
+	sqlfunc.InternalRegistry.ForEach.Disable(false)
+	t.Run("registryENABLED", testForEachMulti)
 }
 
 func ExampleScan() {
