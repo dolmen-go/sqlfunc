@@ -19,7 +19,9 @@ package sqlfunc_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"testing"
 	"time"
@@ -49,6 +51,83 @@ func ExampleForEach() {
 		fmt.Println(n)
 	})
 	if err != nil {
+		log.Printf("ScanRows: %v", err)
+		return
+	}
+
+	fmt.Println("Done.")
+
+	// Output:
+	// 1
+	// 2
+	// Done.
+}
+
+func ExampleForEach_returnBool() {
+	ctx := context.Background()
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Printf("Open: %v", err)
+		return
+	}
+	defer db.Close()
+
+	rows, err := db.QueryContext(ctx, ``+
+		`SELECT 1`+
+		` UNION ALL`+
+		` SELECT 2`+
+		` UNION ALL`+
+		` SELECT 3`)
+	if err != nil {
+		log.Printf("Query: %v", err)
+		return
+	}
+
+	err = sqlfunc.ForEach(rows, func(n int) bool {
+		fmt.Println(n)
+		return n < 2 // Stop iterating on n == 2
+	})
+	if err != nil {
+		log.Printf("ScanRows: %v", err)
+		return
+	}
+
+	fmt.Println("Done.")
+
+	// Output:
+	// 1
+	// 2
+	// Done.
+}
+
+func ExampleForEach_returnError() {
+	ctx := context.Background()
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Printf("Open: %v", err)
+		return
+	}
+	defer db.Close()
+
+	rows, err := db.QueryContext(ctx, ``+
+		`SELECT 1`+
+		` UNION ALL`+
+		` SELECT 2`+
+		` UNION ALL`+
+		` SELECT 3`)
+	if err != nil {
+		log.Printf("Query: %v", err)
+		return
+	}
+
+	err = sqlfunc.ForEach(rows, func(n int) error {
+		fmt.Println(n)
+		if n == 2 {
+			return io.EOF
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, io.EOF) {
 		log.Printf("ScanRows: %v", err)
 		return
 	}
