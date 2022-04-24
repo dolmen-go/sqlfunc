@@ -96,38 +96,56 @@ func Scan(fnPtr interface{}) {
 
 // ForEach iterates an *sql.Rows, scans the values of the row and calls the given callback function with the values.
 //
-// The callback receives the scanned columns values as arguments and may return an error to stop iterating.
+// The callback receives the scanned columns values as arguments and may return an error or a bool (false) to stop iterating.
 //
 // rows are closed before returning.
 func ForEach(rows *sql.Rows, callback interface{}) error {
 	fnType := reflect.TypeOf(callback)
-	if fnType.Kind() != reflect.Func {
-		panic("callback must be a func")
-	}
-	numIn := fnType.NumIn()
-	if numIn == 0 {
-		panic("callback must accept at least one argument")
-	}
-	withError := fnType.NumOut() > 0
-	if withError {
-		if fnType.NumOut() != 1 || fnType.Out(0) != typeError {
-			panic("callback may only return an error")
-		}
-	}
-	inTypes := make([]reflect.Type, numIn, numIn)
-	for i := 0; i < numIn; i++ {
-		inTypes[i] = fnType.In(i)
-	}
+	f := registry.ForEach.Get(fnType)
+	if f == nil {
 
-	return (&runForEach{
-		inTypes:   inTypes,
-		withError: withError,
-	}).run(rows, callback)
+		if fnType.Kind() != reflect.Func {
+			panic("callback must be a func")
+		}
+		numIn := fnType.NumIn()
+		if numIn == 0 {
+			panic("callback must accept at least one argument")
+		}
+
+		var returnType int
+		switch fnType.NumOut() {
+		case 0:
+		case 1:
+			switch fnType.Out(0) {
+			case typeBool:
+				returnType = 1
+			case typeError:
+				returnType = 2
+			default:
+				panic("callback may only return an error or a bool")
+			}
+		default:
+			panic("callback may only return an error or a bool")
+		}
+
+		inTypes := make([]reflect.Type, numIn, numIn)
+		for i := 0; i < numIn; i++ {
+			inTypes[i] = fnType.In(i)
+		}
+
+		f = (&runForEach{
+			inTypes:    inTypes,
+			returnType: returnType,
+		}).run
+		// Register in the background
+		go registry.ForEach.Register(callback, f)
+	}
+	return f(rows, callback)
 }
 
 type runForEach struct {
-	inTypes   []reflect.Type
-	withError bool
+	inTypes    []reflect.Type
+	returnType int
 }
 
 func (r *runForEach) run(rows *sql.Rows, callback interface{}) (err error) {
@@ -159,13 +177,19 @@ func (r *runForEach) run(rows *sql.Rows, callback interface{}) (err error) {
 			// TODO wrap err
 			return
 		}
-		if r.withError {
+		switch r.returnType {
+		case 0:
+			fn.Call(fnArgs)
+		case 1:
+			// Stop iteration if callback returns false
+			if !fn.Call(fnArgs)[0].Interface().(bool) {
+				return
+			}
+		case 2:
 			var isError bool
 			if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
 				return // user error: don't wrap
 			}
-		} else {
-			fn.Call(fnArgs)
 		}
 	}
 

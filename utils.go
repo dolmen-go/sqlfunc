@@ -33,6 +33,7 @@ type txStmt interface {
 }
 
 var (
+	typeBool    = reflect.TypeOf(true)
 	typeContext = reflect.TypeOf(new(context.Context)).Elem()
 	typeResult  = reflect.TypeOf(new(sql.Result)).Elem()
 	typeError   = reflect.TypeOf(new(error)).Elem()
