@@ -247,6 +247,48 @@ func ExampleScan() {
 	// [a b]
 }
 
+func ExampleScan_any() {
+	ctx := context.Background()
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Printf("Open: %v", err)
+		return
+	}
+	defer db.Close()
+
+	var scan1 func(*sql.Rows, *interface{}) error
+	rows, err := db.QueryContext(ctx, ``+
+		`SELECT 1`+
+		` UNION ALL`+
+		` SELECT NULL`+
+		` UNION ALL`+
+		` SELECT 'a'`)
+	if err != nil {
+		log.Printf("Query1: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	sqlfunc.Scan(&scan1)
+
+	for rows.Next() {
+		var v interface{}
+		if err = scan1(rows, &v); err != nil {
+			log.Printf("Scan1: %v", err)
+			return
+		}
+		fmt.Printf("%T %#[1]v\n", v)
+	}
+	if err = rows.Err(); err != nil {
+		log.Printf("Next1: %v", err)
+	}
+
+	// Output:
+	// int64 1
+	// <nil> <nil>
+	// string "a"
+}
+
 func BenchmarkForEach(b *testing.B) {
 	ctx := context.Background()
 	db, err := sql.Open(sqliteDriver, ":memory:")
