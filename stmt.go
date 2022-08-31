@@ -35,25 +35,25 @@ import (
 //
 // Example:
 //
-//    var f func(ctx context.Context, arg1 int64, arg2 string, arg3 sql.NullInt, arg4 *sql.Time) (sql.Result, error)
-//    close1, err = sqlfunc.Exec(ctx, db, "SELECT ?, ?, ?, ?", &f)
-//    // if err != nil ...
-//    defer close1()
-//    res, err = f(ctx, 1, "a", sql.NullInt{Valid: false}, time.Now())
+//	var f func(ctx context.Context, arg1 int64, arg2 string, arg3 sql.NullInt, arg4 *sql.Time) (sql.Result, error)
+//	close1, err = sqlfunc.Exec(ctx, db, "SELECT ?, ?, ?, ?", &f)
+//	// if err != nil ...
+//	defer close1()
+//	res, err = f(ctx, 1, "a", sql.NullInt{Valid: false}, time.Now())
 //
 // Example with transaction:
 //
-//    var fTx func(ctx context, *sql.Tx, arg1 int64) (sql.Result, error)
-//    close2, err = sqlfunc.Exec(ctx, db, "SELECT ?", &fTx)
-//    // if err != nil ...
-//    defer close2()
+//	var fTx func(ctx context, *sql.Tx, arg1 int64) (sql.Result, error)
+//	close2, err = sqlfunc.Exec(ctx, db, "SELECT ?", &fTx)
+//	// if err != nil ...
+//	defer close2()
 //
-//    tx, err := db.BeginTxt()
-//    // if err != nil ...
-//    res, err := fTx(ctx, tx, 123)
-//    // if err != nil ...
-//    err = tx.Commit()
-//    // if err != nil ...
+//	tx, err := db.BeginTxt()
+//	// if err != nil ...
+//	res, err := fTx(ctx, tx, 123)
+//	// if err != nil ...
+//	err = tx.Commit()
+//	// if err != nil ...
 func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
 	if vPtr.Type().Kind() != reflect.Ptr {

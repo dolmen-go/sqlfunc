@@ -8,7 +8,7 @@ import (
 )
 
 // Ř is the private registry used by the sqlfunc monomorphizer.
-//var Ř privateRegistry
+// var Ř privateRegistry
 var registry privateRegistry
 
 func init() {

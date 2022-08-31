@@ -18,15 +18,15 @@ limitations under the License.
 //
 // You just have to define the function signature you need:
 //
-//    var whoami func() (string, error)
+//	var whoami func() (string, error)
 //
 // and the SQL statement that this function wraps:
 //
-//    close, err := sqlfunc.QueryRow(ctx, db, `SELECT USER()`, &whoami)  // MySQL example
-//    defer close()
+//	close, err := sqlfunc.QueryRow(ctx, db, `SELECT USER()`, &whoami)  // MySQL example
+//	defer close()
 //
 // You can now use the function:
 //
-//    user, err := whoami()
-//    fmt.Println("Connected as", user)
+//	user, err := whoami()
+//	fmt.Println("Connected as", user)
 package sqlfunc
