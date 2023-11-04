@@ -18,7 +18,7 @@ limitations under the License.
 //
 // You just have to define the function signature you need:
 //
-//	var whoami func() (string, error)
+//	var whoami func(context.Context) (string, error)
 //
 // and the SQL statement that this function wraps:
 //
@@ -27,6 +27,6 @@ limitations under the License.
 //
 // You can now use the function:
 //
-//	user, err := whoami()
+//	user, err := whoami(ctx)
 //	fmt.Println("Connected as", user)
 package sqlfunc
