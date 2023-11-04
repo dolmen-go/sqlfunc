@@ -21,11 +21,11 @@ import (
 	"reflect"
 )
 
-// Scan allows to define a function that will scan one row from an *[database/sql.Rows].
+// Scan allows to define a function that will scan one row from an [*sql.Rows].
 //
 // The signature of the function defines how the column values are retrieved into variables.
 // Two styles are available:
-//   - as pointer variables (like [database/sql.Rows.Scan]): func (rows *sql.Rows, pval1 *int, pval2 *string) error
+//   - as pointer variables (like [sql.Rows.Scan]): func (rows *sql.Rows, pval1 *int, pval2 *string) error
 //   - as returned values (implies copies): func (rows *sql.Rows) (val1 int, val2 string, err error)
 func Scan(fnPtr interface{}) {
 	vPtr := reflect.ValueOf(fnPtr)
@@ -94,7 +94,7 @@ func Scan(fnPtr interface{}) {
 	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
 }
 
-// ForEach iterates an *[database/sql.Rows], scans the values of the row and calls the given callback function with the values.
+// ForEach iterates an [*sql.Rows], scans the values of the row and calls the given callback function with the values.
 //
 // The callback receives the scanned columns values as arguments and may return an error or a bool (false) to stop iterating.
 //

@@ -18,18 +18,21 @@ package sqlfunc
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
 )
 
-// Exec prepares an SQL statement and creates a function wrapping [database/sql.Stmt.ExecContext].
+var _ *sql.DB // Fake var just to have database/sql imported for go doc
+
+// Exec prepares an SQL statement and creates a function wrapping [sql.Stmt.ExecContext].
 //
 // fnPtr is a pointer to a func variable. The function signature tells how it will be called.
 //
 // The first argument is a [context.Context].
-// If a *[database/sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [database/sql.Tx.StmtContext]).
-// The following arguments will be given as arguments to [database/sql.Stmt.ExecContext].
+// If a [*sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [sql.Tx.StmtContext]).
+// The following arguments will be given as arguments to [sql.Stmt.ExecContext].
 //
-// The function will return an [database/sql.Result] and an error.
+// The function will return an [sql.Result] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
 //
@@ -109,15 +112,15 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 	return stmt.Close, nil
 }
 
-// QueryRow prepares an SQL statement and creates a function wrapping [database/sql.Stmt.QueryRowContext] and [database/sql.Row.Scan].
+// QueryRow prepares an SQL statement and creates a function wrapping [sql.Stmt.QueryRowContext] and [sql.Row.Scan].
 //
 // fnPtr is a pointer to a func variable. The function signature tells how it will be called.
 //
 // The first argument is a [context.Context].
-// If a *[database/sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [database/sql.Tx.StmtContext]).
-// The following arguments will be given as arguments to [database/sql.Stmt.QueryRowContext].
+// If a [*sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [sql.Tx.StmtContext]).
+// The following arguments will be given as arguments to [sql.Stmt.QueryRowContext].
 //
-// The function will return values scanned from the [database/sql.Row] and an error.
+// The function will return values scanned from the [sql.Row] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
 func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
@@ -188,15 +191,15 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface
 	return stmt.Close, nil
 }
 
-// Query prepares an SQL statement and creates a function wrapping [database/sql.Stmt.QueryContext].
+// Query prepares an SQL statement and creates a function wrapping [sql.Stmt.QueryContext].
 //
 // fnPtr is a pointer to a func variable. The function signature tells how it will be called.
 //
 // The first argument is a [context.Context].
-// If an *[database/sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [database/sql.Tx.StmtContext]).
-// The following arguments will be given as arguments to [database/sql.Stmt.QueryRowContext].
+// If an [*sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [sql.Tx.StmtContext]).
+// The following arguments will be given as arguments to [sql.Stmt.QueryRowContext].
 //
-// The function will return an *[database/sql.Rows] and an error.
+// The function will return an [*sql.Rows] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
 func Query(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {

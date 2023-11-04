@@ -22,12 +22,12 @@ import (
 	"reflect"
 )
 
-// PrepareConn is a subset of *[database/sql.DB], *[database/sql.Conn] or *[database/sql.Tx].
+// PrepareConn is a subset of [*database/sql.DB], [*database/sql.Conn] or [*database/sql.Tx].
 type PrepareConn interface {
 	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 }
 
-// txStmt is a subset of *[database/sql.Tx].
+// txStmt is a subset of [*database/sql.Tx].
 type txStmt interface {
 	StmtContext(ctx context.Context, stmt *sql.Stmt) *sql.Stmt
 }
