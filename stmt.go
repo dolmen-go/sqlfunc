@@ -117,7 +117,7 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 // If a *[database/sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [database/sql.Tx.StmtContext]).
 // The following arguments will be given as arguments to [database/sql.Stmt.QueryRowContext].
 //
-// The function will return values scanned from the [database.sql.Row] and an error.
+// The function will return values scanned from the [database/sql.Row] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
 func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
