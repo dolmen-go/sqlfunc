@@ -124,6 +124,15 @@ func ExampleExec_withTx() {
 	check("Prepare countPOI", err)
 	defer closeCountPOI()
 
+	var queryNames func(ctx context.Context) (*sql.Rows, error)
+	closeQueryNames, err := sqlfunc.Query(
+		ctx, conn,
+		`SELECT name FROM poi ORDER BY name`,
+		&queryNames,
+	)
+	check("Prepare queryNames", err)
+	defer closeQueryNames()
+
 	nbPOI, err := countPOI(ctx)
 	check("countPOI", err)
 
@@ -160,6 +169,15 @@ func ExampleExec_withTx() {
 	check("countPOI", err)
 	fmt.Println("countPOI after inserts:", nbPOI)
 
+	rows, err := queryNames(ctx)
+	check("queryNames", err)
+	var names []string
+	err = sqlfunc.ForEach(rows, func(name string) {
+		names = append(names, name)
+	})
+	check("ForEach", err)
+	fmt.Println("names:", names)
+
 	tx.Rollback()
 
 	nbPOI, err = countPOI(ctx)
@@ -172,5 +190,6 @@ func ExampleExec_withTx() {
 	// Rows inserted: 1
 	// Rows inserted: 1
 	// countPOI after inserts: 2
+	// names: [Château de Versailles Villeperdue]
 	// countPOI after rollback: 0
 }
