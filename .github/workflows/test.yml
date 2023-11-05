@@ -18,12 +18,12 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/setup-go@v3
-        with:
-          go-version: ${{ matrix.go-version }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
       - uses: actions/cache@v2
         if: matrix.os != 'windows-latest'
         with:
