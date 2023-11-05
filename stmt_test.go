@@ -193,3 +193,36 @@ func ExampleExec_withTx() {
 	// names: [Château de Versailles Villeperdue]
 	// countPOI after rollback: 0
 }
+
+func ExampleQuery() {
+	check := func(msg string, err error) {
+		if err != nil {
+			panic(fmt.Errorf("%s: %v", msg, err))
+		}
+	}
+
+	ctx := context.Background()
+	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
+	check("Open", err)
+	defer db.Close()
+
+	var queryNames func(ctx context.Context) (*sql.Rows, error)
+	closeQueryNames, err := sqlfunc.Query(
+		ctx, db,
+		`SELECT name FROM poi ORDER BY name`,
+		&queryNames,
+	)
+	check("Prepare queryNames", err)
+	defer closeQueryNames()
+
+	rows, err := queryNames(ctx)
+	check("queryNames", err)
+	err = sqlfunc.ForEach(rows, func(name string) {
+		fmt.Println("-", name)
+	})
+	check("read rows", err)
+
+	// Output:
+	// - Château de Versailles
+	// - Villeperdue
+}
