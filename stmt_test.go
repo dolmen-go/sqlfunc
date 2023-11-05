@@ -108,13 +108,16 @@ func ExampleExec_withTx() {
 	check("Open", err)
 	defer db.Close()
 
+	conn, err := db.Conn(ctx)
+	check("Conn", err)
+
 	// POI = Point of Interest
-	_, err = db.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
+	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
 	check("Create table", err)
 
 	var countPOI func(ctx context.Context) (int64, error)
 	closeCountPOI, err := sqlfunc.QueryRow(
-		ctx, db,
+		ctx, conn,
 		`SELECT COUNT(*) FROM poi`,
 		&countPOI,
 	)
@@ -135,7 +138,7 @@ func ExampleExec_withTx() {
 	check("Prepare insertPOI", err)
 	defer closeInsertPOI()
 
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	check("BeginTx", err)
 	defer tx.Rollback()
 
@@ -144,18 +147,18 @@ func ExampleExec_withTx() {
 
 	nbRows, err := res.RowsAffected()
 	check("RowsAffected", err)
-
 	fmt.Println("Rows inserted:", nbRows)
 
-	/*
-		// FIXME count here too
-		nbPOI, err = countPOI(ctx)
-		if err != nil {
-			log.Println("countPOI after insert:", err)
-			return
-		}
-		fmt.Println("countPOI after insert:", nbPOI)
-	*/
+	res, err = insertPOI(ctx, tx, 47.2009, 0.6317, "Villeperdue")
+	check("newPOI", err)
+
+	nbRows, err = res.RowsAffected()
+	check("RowsAffected", err)
+	fmt.Println("Rows inserted:", nbRows)
+
+	nbPOI, err = countPOI(ctx)
+	check("countPOI", err)
+	fmt.Println("countPOI after inserts:", nbPOI)
 
 	tx.Rollback()
 
@@ -167,5 +170,7 @@ func ExampleExec_withTx() {
 	// Output:
 	// countPOI before insert: 0
 	// Rows inserted: 1
+	// Rows inserted: 1
+	// countPOI after inserts: 2
 	// countPOI after rollback: 0
 }
