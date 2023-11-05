@@ -226,3 +226,64 @@ func ExampleQuery() {
 	// - Château de Versailles
 	// - Villeperdue
 }
+
+func ExampleQuery_withArgs() {
+	check := func(msg string, err error) {
+		if err != nil {
+			panic(fmt.Errorf("%s: %v", msg, err))
+		}
+	}
+
+	ctx := context.Background()
+	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
+	check("Open", err)
+	defer db.Close()
+
+	var queryByName func(ctx context.Context, name string) (*sql.Rows, error)
+	closeQueryByName, err := sqlfunc.Query(
+		ctx, db,
+		`SELECT lat, lon FROM poi WHERE name = ?`,
+		&queryByName,
+	)
+	check("Prepare queryByName", err)
+	defer closeQueryByName()
+
+	rows, err := queryByName(ctx, "Château de Versailles")
+	check("queryByName", err)
+	err = sqlfunc.ForEach(rows, func(lat, lon float64) {
+		fmt.Printf("(%.4f %.4f)\n", lat, lon)
+	})
+	check("read rows", err)
+
+	// Output:
+	// (48.8016 2.1204)
+}
+
+func ExampleQueryRow_withArgs() {
+	check := func(msg string, err error) {
+		if err != nil {
+			panic(fmt.Errorf("%s: %v", msg, err))
+		}
+	}
+
+	ctx := context.Background()
+	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
+	check("Open", err)
+	defer db.Close()
+
+	var queryByName func(ctx context.Context, name string) (lat, lon float64, err error)
+	closeQueryByName, err := sqlfunc.QueryRow(
+		ctx, db,
+		`SELECT lat, lon FROM poi WHERE name = ?`,
+		&queryByName,
+	)
+	check("Prepare queryByName", err)
+	defer closeQueryByName()
+
+	lat, lon, err := queryByName(ctx, "Château de Versailles")
+	check("queryByName", err)
+	fmt.Printf("(%.4f %.4f)\n", lat, lon)
+
+	// Output:
+	// (48.8016 2.1204)
+}
