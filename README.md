@@ -1,13 +1,26 @@
 # sqlfunc - Stronger typing for database/sql prepared statements
 
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/dolmen-go/sqlfunc)
-[![Travis-CI](https://api.travis-ci.org/dolmen-go/sqlfunc.svg?branch=master)](https://travis-ci.org/dolmen-go/sqlfunc)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dolmen-go/sqlfunc.svg)](https://pkg.go.dev/github.com/dolmen-go/sqlfunc)
+[![CI](https://github.com/dolmen-go/sqlfunc/actions/workflows/test.yml/badge.svg)](https://github.com/dolmen-go/sqlfunc/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dolmen-go/sqlfunc)](https://goreportcard.com/report/github.com/dolmen-go/sqlfunc)
 
+## Status
+
+Production ready.
+
+Check [code coverage by the testsuite](https://app.codecov.io/gh/dolmen-go/sqlfunc).
+
+### Known issues
+
+* There is a speed/memory penalty in using the `sqlfunc` wrappers
+  (check `go test -bench B -benchmem github.com/dolmen-go/sqlfunc`).
+  It is recommended to do your own benchmarks. There are plans to fix
+  that (add a code generator to reduce cost of runtime `reflect`),
+  but no release date planned for this complex feature.
 
 ## License
 
-Copyright 2022 Olivier Mengué
+Copyright 2023 Olivier Mengué
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
