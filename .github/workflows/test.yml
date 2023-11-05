@@ -32,14 +32,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
-      - uses: actions/cache@v2
-        if: matrix.os != 'windows-latest'
-        with:
-          # https://github.com/mvdan/github-actions-golang#how-do-i-set-up-caching-between-builds
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-{{ hashFile('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: Download dependencies
         run: go mod download
       - name: Run coverage
