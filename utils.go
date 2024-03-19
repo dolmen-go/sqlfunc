@@ -28,7 +28,7 @@ type PrepareConn interface {
 }
 
 // txStmt is a subset of [*database/sql.Tx].
-type txStmt interface {
+type txStmt = interface {
 	StmtContext(ctx context.Context, stmt *sql.Stmt) *sql.Stmt
 }
 
