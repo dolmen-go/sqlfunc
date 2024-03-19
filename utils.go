@@ -33,11 +33,14 @@ type txStmt interface {
 }
 
 var (
-	typeBool    = reflect.TypeOf(true)
-	typeContext = reflect.TypeOf(new(context.Context)).Elem()
-	typeResult  = reflect.TypeOf(new(sql.Result)).Elem()
-	typeError   = reflect.TypeOf(new(error)).Elem()
-	typeScanner = reflect.TypeOf(new(sql.Scanner)).Elem()
-	typeRows    = reflect.TypeOf(new(*sql.Rows)).Elem()
-	typeTxStmt  = reflect.TypeOf(new(txStmt)).Elem()
+	// Concrete types
+	typeBool = reflect.TypeOf(true)
+	typeRows = reflect.TypeOf((*sql.Rows)(nil))
+
+	// Interfaces
+	typeContext = reflect.TypeOf([]context.Context(nil)).Elem()
+	typeResult  = reflect.TypeOf([]sql.Result(nil)).Elem()
+	typeError   = reflect.TypeOf([]error(nil)).Elem()
+	typeScanner = reflect.TypeOf([]sql.Scanner(nil)).Elem()
+	typeTxStmt  = reflect.TypeOf([]txStmt(nil)).Elem()
 )
