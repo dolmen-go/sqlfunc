@@ -37,14 +37,19 @@ func ExampleExec() {
 	check("Open", err)
 	defer db.Close()
 
+	// As the DB is in-memory, we need to use the same connection for all operations
+	conn, err := db.Conn(ctx)
+	check("Conn", err)
+	defer conn.Close()
+
 	// POI = Point of Interest
-	_, err = db.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
+	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
 	check("Create table", err)
 
 	// newPOI is the function that will call the INSERT statement
 	var newPOI func(ctx context.Context, lat float32, lon float32, name string) (sql.Result, error)
 	closeStmt, err := sqlfunc.Exec(
-		ctx, db,
+		ctx, conn,
 		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
 		&newPOI,
 	)
@@ -56,10 +61,10 @@ func ExampleExec() {
 	check("newPOI", err)
 
 	var name string
-	err = db.QueryRow(`` +
-		`SELECT name` +
-		` FROM poi` +
-		` WHERE lat BETWEEN 48.8015 AND 48.8017` +
+	err = conn.QueryRowContext(ctx, ``+
+		`SELECT name`+
+		` FROM poi`+
+		` WHERE lat BETWEEN 48.8015 AND 48.8017`+
 		` AND lon BETWEEN 2.1203 AND 2.1205`,
 	).Scan(&name)
 	check("Query", err)
@@ -68,7 +73,7 @@ func ExampleExec() {
 
 	var getPOICoord func(ctx context.Context, name string) (lat float64, lon float64, err error)
 	closeStmt, err = sqlfunc.QueryRow(
-		ctx, db, ``+
+		ctx, conn, ``+
 			`SELECT lat, lon`+
 			` FROM poi`+
 			` WHERE name = ?`,
@@ -108,8 +113,10 @@ func ExampleExec_withTx() {
 	check("Open", err)
 	defer db.Close()
 
+	// As the DB is in-memory, we need to use the same connection for all operations
 	conn, err := db.Conn(ctx)
 	check("Conn", err)
+	defer conn.Close()
 
 	// POI = Point of Interest
 	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
@@ -140,7 +147,7 @@ func ExampleExec_withTx() {
 
 	var insertPOI func(ctx context.Context, tx *sql.Tx, lat, lon float64, name string) (sql.Result, error)
 	closeInsertPOI, err := sqlfunc.Exec(
-		ctx, db,
+		ctx, conn,
 		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
 		&insertPOI,
 	)
