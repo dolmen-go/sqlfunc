@@ -143,6 +143,7 @@ func ExampleForEach_returnError() {
 func TestForEachMulti(t *testing.T) {
 	testForEachMulti := func(t *testing.T) {
 		ctx := context.Background()
+		// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 		db, err := sql.Open(sqliteDriver, ":memory:")
 		if err != nil {
 			log.Printf("Open: %v", err)
@@ -291,6 +292,7 @@ func ExampleScan_any() {
 
 func BenchmarkForEach(b *testing.B) {
 	ctx := context.Background()
+	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
@@ -384,6 +386,7 @@ func BenchmarkForEach(b *testing.B) {
 
 func BenchmarkScan(b *testing.B) {
 	ctx := context.Background()
+	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)

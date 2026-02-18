@@ -15,6 +15,7 @@ var sqliteDriver = "sqlite3"
 // go test -v -run TestSQLiteVersion -tags nomodernc
 func TestSQLiteVersion(t *testing.T) {
 	ctx := context.Background()
+	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		t.Logf("Open: %v", err)
