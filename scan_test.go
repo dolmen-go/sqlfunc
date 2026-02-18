@@ -146,7 +146,7 @@ func TestForEachMulti(t *testing.T) {
 		// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 		db, err := sql.Open(sqliteDriver, ":memory:")
 		if err != nil {
-			log.Printf("Open: %v", err)
+			t.Fatalf("Open: %v", err)
 			return
 		}
 		defer db.Close()
@@ -389,7 +389,7 @@ func BenchmarkScan(b *testing.B) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
+		b.Errorf("Open: %v", err)
 		return
 	}
 	defer db.Close()
@@ -411,13 +411,13 @@ func BenchmarkScan(b *testing.B) {
 			values = values[:0]
 			rows, err := stmt.Query()
 			if err != nil {
-				log.Println(err)
+				b.Error(err)
 				break
 			}
 			for rows.Next() {
 				var n int
 				if err := rows.Scan(&n); err != nil {
-					log.Println(err)
+					b.Error(err)
 					break
 				}
 				_ = n
@@ -435,13 +435,13 @@ func BenchmarkScan(b *testing.B) {
 			values = values[:0]
 			rows, err := stmt.Query()
 			if err != nil {
-				log.Println(err)
+				b.Error(err)
 				break
 			}
 			for rows.Next() {
 				var n int
 				if err := scan(rows, &n); err != nil {
-					log.Println(err)
+					b.Error(err)
 					break
 				}
 				_ = n
@@ -460,13 +460,13 @@ func BenchmarkScan(b *testing.B) {
 			values = values[:0]
 			rows, err := stmt.Query()
 			if err != nil {
-				log.Println(err)
+				b.Error(err)
 				break
 			}
 			for rows.Next() {
 				n, err := scan(rows)
 				if err != nil {
-					log.Println(err)
+					b.Error(err)
 					break
 				}
 				_ = n
