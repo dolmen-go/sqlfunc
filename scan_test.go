@@ -142,7 +142,7 @@ func ExampleForEach_returnError() {
 
 func TestForEachMulti(t *testing.T) {
 	testForEachMulti := func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 		db, err := sql.Open(sqliteDriver, ":memory:")
 		if err != nil {
@@ -291,7 +291,6 @@ func ExampleScan_any() {
 }
 
 func BenchmarkForEach(b *testing.B) {
-	ctx := context.Background()
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
@@ -306,11 +305,11 @@ func BenchmarkForEach(b *testing.B) {
 	for i := 2; i <= nbRows; i++ {
 		query += fmt.Sprint(" UNION ALL SELECT ", i)
 	}
-	stmt, err := db.PrepareContext(ctx, query)
+	stmt, err := db.PrepareContext(b.Context(), query)
 	defer stmt.Close()
 
 	runQuery := func(b *testing.B) *sql.Rows {
-		rows, err := stmt.Query()
+		rows, err := stmt.QueryContext(b.Context())
 		if err != nil {
 			b.Fatalf("Query: %v", err)
 			return nil
@@ -382,7 +381,6 @@ func BenchmarkForEach(b *testing.B) {
 }
 
 func BenchmarkScan(b *testing.B) {
-	ctx := context.Background()
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
@@ -397,11 +395,11 @@ func BenchmarkScan(b *testing.B) {
 	for i := 2; i <= nbRows; i++ {
 		query += fmt.Sprint(" UNION ALL SELECT ", i)
 	}
-	stmt, err := db.PrepareContext(ctx, query)
+	stmt, err := db.PrepareContext(b.Context(), query)
 	defer stmt.Close()
 
 	runQuery := func(b *testing.B) *sql.Rows {
-		rows, err := stmt.Query()
+		rows, err := stmt.QueryContext(b.Context())
 		if err != nil {
 			b.Fatalf("Query: %v", err)
 			return nil

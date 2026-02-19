@@ -1,7 +1,6 @@
 package sqlfunc_test
 
 import (
-	"context"
 	"database/sql"
 	"reflect"
 	"testing"
@@ -14,7 +13,6 @@ var sqliteDriver = "sqlite3"
 // go test -v -run TestSQLiteVersion
 // go test -v -run TestSQLiteVersion -tags nomodernc
 func TestSQLiteVersion(t *testing.T) {
-	ctx := context.Background()
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
@@ -24,7 +22,7 @@ func TestSQLiteVersion(t *testing.T) {
 	defer db.Close()
 
 	var version string
-	if err = db.QueryRowContext(ctx, `SELECT sqlite_version()`).Scan(&version); err != nil {
+	if err = db.QueryRowContext(t.Context(), `SELECT sqlite_version()`).Scan(&version); err != nil {
 		t.Logf("sqlite_version(): %v", err)
 		return
 	}
