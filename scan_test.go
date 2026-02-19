@@ -300,7 +300,7 @@ func ExampleScan_any() {
 	// string "a"
 }
 
-func BenchmarkForEach(b *testing.B) {
+func benchmarkForEach_oneColumn[T any](b *testing.B, query string, nbRows int) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
@@ -309,12 +309,6 @@ func BenchmarkForEach(b *testing.B) {
 	}
 	defer db.Close()
 
-	const nbRows = 500
-
-	var query = "SELECT 1"
-	for i := 2; i <= nbRows; i++ {
-		query += fmt.Sprint(" UNION ALL SELECT ", i)
-	}
 	stmt, err := db.PrepareContext(b.Context(), query)
 	defer stmt.Close()
 
@@ -327,7 +321,7 @@ func BenchmarkForEach(b *testing.B) {
 		return rows
 	}
 
-	values := make([]int, 0, nbRows)
+	values := make([]T, 0, nbRows)
 
 	b.Run("manual", func(b *testing.B) {
 		b.ReportAllocs()
@@ -335,7 +329,7 @@ func BenchmarkForEach(b *testing.B) {
 			values = values[:0]
 			rows := runQuery(b)
 			for rows.Next() {
-				var n int
+				var n T
 				if err = rows.Scan(&n); err != nil {
 					b.Error(err)
 					break
@@ -359,7 +353,7 @@ func BenchmarkForEach(b *testing.B) {
 		for b.Loop() {
 			values = values[:0]
 			rows := runQuery(b)
-			err = sqlfunc.ForEach(rows, func(n int) {
+			err = sqlfunc.ForEach(rows, func(n T) {
 				values = append(values, n)
 			})
 			if err != nil {
@@ -376,7 +370,7 @@ func BenchmarkForEach(b *testing.B) {
 		for b.Loop() {
 			values = values[:0]
 			rows := runQuery(b)
-			err = sqlfunc.ForEach(rows, func(n int) error {
+			err = sqlfunc.ForEach(rows, func(n T) error {
 				values = append(values, n)
 				return nil
 			})
@@ -387,6 +381,29 @@ func BenchmarkForEach(b *testing.B) {
 				b.Fatal("unexpected result")
 			}
 		}
+	})
+}
+
+func BenchmarkForEach(b *testing.B) {
+
+	const nbRows = 500
+
+	b.Run("oneColumn_int", func(b *testing.B) {
+		var query = `SELECT 1`
+		for i := 2; i <= nbRows; i++ {
+			query += fmt.Sprint(` UNION ALL SELECT `, i)
+		}
+
+		benchmarkForEach_oneColumn[int](b, query, nbRows)
+	})
+
+	b.Run("oneColumn_string", func(b *testing.B) {
+		var query = `SELECT 'abcdefghijklmnopqrstuvwxyz'`
+		for i := 2; i <= nbRows; i++ {
+			query += fmt.Sprint(` UNION ALL SELECT `, i)
+		}
+
+		benchmarkForEach_oneColumn[string](b, query, nbRows)
 	})
 }
 
