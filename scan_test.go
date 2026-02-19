@@ -300,15 +300,14 @@ func ExampleScan_any() {
 	// string "a"
 }
 
-func benchmarkForEach_oneColumn[T any](b *testing.B, query string, nbRows int) {
-	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
-	db, err := sql.Open(sqliteDriver, ":memory:")
-	if err != nil {
-		log.Printf("Open: %v", err)
-		return
-	}
-	defer db.Close()
-
+func benchmarkForEach_oneColumn[T any](
+	b *testing.B,
+	db interface {
+		PrepareContext(context.Context, string) (*sql.Stmt, error)
+	},
+	query string,
+	nbRows int,
+) {
 	stmt, err := db.PrepareContext(b.Context(), query)
 	defer stmt.Close()
 
@@ -385,6 +384,13 @@ func benchmarkForEach_oneColumn[T any](b *testing.B, query string, nbRows int) {
 }
 
 func BenchmarkForEach(b *testing.B) {
+	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Printf("Open: %v", err)
+		return
+	}
+	defer db.Close()
 
 	const nbRows = 500
 
@@ -394,7 +400,7 @@ func BenchmarkForEach(b *testing.B) {
 			query += fmt.Sprint(` UNION ALL SELECT `, i)
 		}
 
-		benchmarkForEach_oneColumn[int](b, query, nbRows)
+		benchmarkForEach_oneColumn[int](b, db, query, nbRows)
 	})
 
 	b.Run("oneColumn_string", func(b *testing.B) {
@@ -403,7 +409,7 @@ func BenchmarkForEach(b *testing.B) {
 			query += fmt.Sprint(` UNION ALL SELECT `, i)
 		}
 
-		benchmarkForEach_oneColumn[string](b, query, nbRows)
+		benchmarkForEach_oneColumn[string](b, db, query, nbRows)
 	})
 }
 
