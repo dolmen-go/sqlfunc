@@ -30,7 +30,9 @@ import (
 )
 
 func ExampleForEach() {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
@@ -64,7 +66,9 @@ func ExampleForEach() {
 }
 
 func ExampleForEach_returnBool() {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
@@ -101,7 +105,9 @@ func ExampleForEach_returnBool() {
 }
 
 func ExampleForEach_returnError() {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
@@ -181,7 +187,9 @@ func TestForEachMulti(t *testing.T) {
 }
 
 func ExampleScan() {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)
@@ -249,7 +257,9 @@ func ExampleScan() {
 }
 
 func ExampleScan_any() {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		log.Printf("Open: %v", err)

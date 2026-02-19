@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/dolmen-go/sqlfunc"
 )
@@ -32,7 +33,9 @@ func ExampleExec() {
 		}
 	}
 
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	check("Open", err)
 	defer db.Close()
@@ -108,7 +111,9 @@ func ExampleExec_withTx() {
 		}
 	}
 
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	check("Open", err)
 	defer db.Close()
@@ -208,7 +213,9 @@ func ExampleQuery() {
 		}
 	}
 
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
 	check("Open", err)
 	defer db.Close()
@@ -241,7 +248,9 @@ func ExampleQuery_withArgs() {
 		}
 	}
 
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
 	check("Open", err)
 	defer db.Close()
@@ -273,7 +282,9 @@ func ExampleQueryRow_withArgs() {
 		}
 	}
 
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
 	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
 	check("Open", err)
 	defer db.Close()
