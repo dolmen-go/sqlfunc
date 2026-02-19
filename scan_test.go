@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"testing"
 	"time"
 
@@ -404,10 +405,8 @@ func BenchmarkForEach(b *testing.B) {
 	})
 
 	b.Run("oneColumn_string", func(b *testing.B) {
-		var query = `SELECT 'abcdefghijklmnopqrstuvwxyz'`
-		for i := 2; i <= nbRows; i++ {
-			query += fmt.Sprint(` UNION ALL SELECT `, i)
-		}
+		const oneRow = `SELECT 'abcdefghijklmnopqrstuvwxyz'`
+		var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
 
 		benchmarkForEach_oneColumn[string](b, db, query, nbRows)
 	})
