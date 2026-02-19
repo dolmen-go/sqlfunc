@@ -384,6 +384,99 @@ func benchmarkForEach_oneColumn[T any](
 	})
 }
 
+func benchmarkForEach_fiveColumns[T, U, V, W, X any](
+	b *testing.B,
+	db interface {
+		PrepareContext(context.Context, string) (*sql.Stmt, error)
+	},
+	query string,
+	nbRows int,
+) {
+	stmt, err := db.PrepareContext(b.Context(), query)
+	defer stmt.Close()
+
+	runQuery := func(b *testing.B) *sql.Rows {
+		rows, err := stmt.QueryContext(b.Context())
+		if err != nil {
+			b.Fatalf("Query: %v", err)
+			return nil
+		}
+		return rows
+	}
+
+	type Row struct {
+		A T
+		B U
+		C V
+		D W
+		E X
+	}
+
+	values := make([]Row, 0, nbRows)
+
+	b.Run("manual", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			values = values[:0]
+			rows := runQuery(b)
+			for rows.Next() {
+				var r Row
+				if err = rows.Scan(&r.A, &r.B, &r.C, &r.D, &r.E); err != nil {
+					b.Error(err)
+					break
+				}
+				values = append(values, r)
+			}
+			if err = rows.Err(); err != nil {
+				b.Error(err)
+			}
+			if err = rows.Close(); err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+
+	b.Run("sqlfunc.ForEach", func(b *testing.B) {
+		b.Logf("%T", func(a T, b U, c V, d W, e X) {})
+		b.ReportAllocs()
+		for b.Loop() {
+			values = values[:0]
+			rows := runQuery(b)
+			err = sqlfunc.ForEach(rows, func(a T, b U, c V, d W, e X) {
+				values = append(values, Row{a, b, c, d, e})
+			})
+			if err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+
+	b.Run("sqlfunc.ForEach-err", func(b *testing.B) {
+		b.Logf("%T", func(a T, b U, c V, d W, e X) error { return nil })
+		b.ReportAllocs()
+		for b.Loop() {
+			values = values[:0]
+			rows := runQuery(b)
+			err = sqlfunc.ForEach(rows, func(a T, b U, c V, d W, e X) error {
+				values = append(values, Row{a, b, c, d, e})
+				return nil
+			})
+			if err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+}
+
 func BenchmarkForEach(b *testing.B) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
@@ -409,6 +502,13 @@ func BenchmarkForEach(b *testing.B) {
 		var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
 
 		benchmarkForEach_oneColumn[string](b, db, query, nbRows)
+	})
+
+	b.Run("fiveColumns", func(b *testing.B) {
+		const oneRow = `SELECT 'abcdefghijklmnopqrstuvwxyz' "str", 1, 2, 'abc', 42.42`
+		var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
+
+		benchmarkForEach_fiveColumns[string, int64, int32, string, float64](b, db, query, nbRows)
 	})
 }
 
