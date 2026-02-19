@@ -313,7 +313,7 @@ func BenchmarkForEach(b *testing.B) {
 
 	b.Run("manual", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			rows, err := stmt.Query()
 			if err != nil {
 				log.Println(err)
@@ -342,7 +342,7 @@ func BenchmarkForEach(b *testing.B) {
 
 	b.Run("sqlfunc.ForEach", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			rows, err := stmt.Query()
 			if err != nil {
 				b.Error(err)
@@ -363,7 +363,7 @@ func BenchmarkForEach(b *testing.B) {
 
 	b.Run("sqlfunc.ForEach-err", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			rows, err := stmt.Query()
 			if err != nil {
 				b.Error(err)
@@ -407,7 +407,7 @@ func BenchmarkScan(b *testing.B) {
 
 	b.Run("direct-Scan", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			values = values[:0]
 			rows, err := stmt.Query()
 			if err != nil {
@@ -431,7 +431,7 @@ func BenchmarkScan(b *testing.B) {
 		var scan func(rows *sql.Rows, n *int) error
 		sqlfunc.Scan(&scan)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			values = values[:0]
 			rows, err := stmt.Query()
 			if err != nil {
@@ -456,7 +456,7 @@ func BenchmarkScan(b *testing.B) {
 		var scan func(rows *sql.Rows) (int, error)
 		sqlfunc.Scan(&scan)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			values = values[:0]
 			rows, err := stmt.Query()
 			if err != nil {
