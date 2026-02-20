@@ -164,12 +164,15 @@ func (r *runForEach) run(rows *sql.Rows, callback interface{}) (err error) {
 	numIn := len(r.inTypes)
 	scanners := make([]interface{}, numIn)
 	fnArgs := make([]reflect.Value, numIn)
+	for i := range scanners {
+		ptr := reflect.New(r.inTypes[i])
+		scanners[i] = ptr.Interface()
+		fnArgs[i] = ptr.Elem()
+	}
 
 	for rows.Next() {
-		for i := 0; i < numIn; i++ {
-			ptr := reflect.New(r.inTypes[i])
-			scanners[i] = ptr.Interface()
-			fnArgs[i] = ptr.Elem()
+		for i := range fnArgs {
+			fnArgs[i].SetZero()
 		}
 
 		err = rows.Scan(scanners...)
