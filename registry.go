@@ -12,7 +12,7 @@ import (
 var registry privateRegistry
 
 func init() {
-	registry.ForEach.r = make(map[reflect.Type]funcForEach)
+	registry.ForEach.init()
 }
 
 type privateRegistry struct {
@@ -25,6 +25,10 @@ type registryForEach struct {
 	disabled uint32
 	m        sync.RWMutex
 	r        map[reflect.Type]funcForEach
+}
+
+func (r *registryForEach) init() {
+	r.r = make(map[reflect.Type]funcForEach)
 }
 
 func (r *registryForEach) Disable(ig bool) {
