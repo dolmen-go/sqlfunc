@@ -821,3 +821,160 @@ func BenchmarkScan(b *testing.B) {
 		}
 	})
 }
+
+func benchScan_oneColumn[T any](
+	tb TestingB,
+	conn interface {
+		PrepareContext(context.Context, string) (*sql.Stmt, error)
+	},
+	query string,
+	nbRows int,
+) {
+	var x T
+	tb.Run(fmt.Sprintf("%T-%d", x, nbRows), func(tb TestingB) {
+		stmt, err := conn.PrepareContext(tb.Context(), query)
+		if err != nil {
+			tb.Fatalf("Prepare: %v", err)
+			return
+		}
+		defer stmt.Close()
+
+		runQuery := func(tb TestingB) *sql.Rows {
+			tb.StopTimer()
+			defer tb.StartTimer()
+
+			rows, err := stmt.QueryContext(tb.Context())
+			if err != nil {
+				tb.Fatalf("Query: %v", err)
+				return nil
+			}
+			return rows
+		}
+
+		tb.Run("std", func(tb TestingB) {
+			tb.ReportAllocs()
+			for tb.Loop() {
+				rows := runQuery(tb)
+				defer func() {
+					if err := rows.Close(); err != nil {
+						tb.Errorf("Close: %v", err)
+					}
+				}()
+
+				var values []T
+				for rows.Next() {
+					var v T
+					if err = rows.Scan(&v); err != nil {
+						tb.Fatalf("Scan: %v", err)
+						return
+					}
+					values = append(values, v)
+				}
+
+				tb.StopTimer()
+
+				if err = rows.Err(); err != nil {
+					tb.Errorf("Next: %v", err)
+				}
+				if len(values) != nbRows {
+					tb.Fatal("unexpected result")
+				}
+
+				tb.StartTimer()
+			}
+		})
+
+		tb.Run("out", func(tb TestingB) {
+			tb.ReportAllocs()
+			for tb.Loop() {
+				rows := runQuery(tb)
+				defer func() {
+					if err := rows.Close(); err != nil {
+						tb.Errorf("Close: %v", err)
+					}
+				}()
+
+				var scan func(*sql.Rows) (T, error)
+				sqlfunc.Scan(&scan)
+
+				var values []T
+				for rows.Next() {
+					v, err := scan(rows)
+					if err != nil {
+						tb.Fatalf("Scan: %v", err)
+						return
+					}
+					values = append(values, v)
+				}
+
+				tb.StopTimer()
+
+				if err = rows.Err(); err != nil {
+					tb.Errorf("Next: %v", err)
+				}
+				if len(values) != nbRows {
+					tb.Fatal("unexpected result")
+				}
+
+				tb.StartTimer()
+			}
+		})
+
+		tb.Run("in", func(tb TestingB) {
+			tb.ReportAllocs()
+			for tb.Loop() {
+				rows := runQuery(tb)
+				defer func() {
+					if err := rows.Close(); err != nil {
+						tb.Errorf("Close: %v", err)
+					}
+				}()
+
+				var scan func(*sql.Rows, *T) error
+				sqlfunc.Scan(&scan)
+
+				var values []T
+				for rows.Next() {
+					var v T
+					if err = scan(rows, &v); err != nil {
+						tb.Fatalf("Scan: %v", err)
+						return
+					}
+					values = append(values, v)
+				}
+
+				tb.StopTimer()
+
+				if err = rows.Err(); err != nil {
+					tb.Errorf("Next: %v", err)
+				}
+				if len(values) != nbRows {
+					tb.Fatal("unexpected result")
+				}
+
+				tb.StartTimer()
+			}
+		})
+	})
+}
+
+func suiteScan(tb TestingB) {
+	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
+	db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
+	if err != nil {
+		tb.Errorf("Open: %v", err)
+		return
+	}
+	defer db.Close()
+
+	benchScan_oneColumn[int](tb, db, `SELECT 1 UNION ALL SELECT 2`, 2)
+	benchScan_oneColumn[string](tb, db, `SELECT 'a' UNION ALL SELECT 'b'`, 2)
+}
+
+func BenchmarkScanSuite(b *testing.B) {
+	suiteScan(TestingBAsB(b))
+}
+
+func TestScanSuite(t *testing.T) {
+	suiteScan(TestingTAsB(t))
+}
