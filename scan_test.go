@@ -329,12 +329,12 @@ func benchmarkForEach_oneColumn[T any](
 			values = values[:0]
 			rows := runQuery(b)
 			for rows.Next() {
-				var n T
-				if err = rows.Scan(&n); err != nil {
+				var v T
+				if err = rows.Scan(&v); err != nil {
 					b.Error(err)
 					break
 				}
-				values = append(values, n)
+				values = append(values, v)
 			}
 			if err = rows.Err(); err != nil {
 				b.Error(err)
@@ -354,8 +354,8 @@ func benchmarkForEach_oneColumn[T any](
 		for b.Loop() {
 			values = values[:0]
 			rows := runQuery(b)
-			err = sqlfunc.ForEach(rows, func(n T) {
-				values = append(values, n)
+			err = sqlfunc.ForEach(rows, func(v T) {
+				values = append(values, v)
 			})
 			if err != nil {
 				b.Error(err)
@@ -372,8 +372,8 @@ func benchmarkForEach_oneColumn[T any](
 		for b.Loop() {
 			values = values[:0]
 			rows := runQuery(b)
-			err = sqlfunc.ForEach(rows, func(n T) error {
-				values = append(values, n)
+			err = sqlfunc.ForEach(rows, func(v T) error {
+				values = append(values, v)
 				return nil
 			})
 			if err != nil {
