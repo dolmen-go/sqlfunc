@@ -348,7 +348,8 @@ func benchmarkForEach_oneColumn[T any](
 		}
 	})
 
-	b.Run("sqlfunc.ForEach", func(b *testing.B) {
+	b.Run("sqlfunc.ForEach-void", func(b *testing.B) {
+		b.Logf("%T", func(T) {})
 		b.ReportAllocs()
 		for b.Loop() {
 			values = values[:0]
@@ -365,7 +366,8 @@ func benchmarkForEach_oneColumn[T any](
 		}
 	})
 
-	b.Run("sqlfunc.ForEach-err", func(b *testing.B) {
+	b.Run("sqlfunc.ForEach-error", func(b *testing.B) {
+		b.Logf("%T", func(T) error { return nil })
 		b.ReportAllocs()
 		for b.Loop() {
 			values = values[:0]
@@ -439,8 +441,8 @@ func benchmarkForEach_fiveColumns[T, U, V, W, X any](
 		}
 	})
 
-	b.Run("sqlfunc.ForEach", func(b *testing.B) {
-		b.Logf("%T", func(a T, b U, c V, d W, e X) {})
+	b.Run("sqlfunc.ForEach-void", func(b *testing.B) {
+		b.Logf("%T", func(T, U, V, W, X) {})
 		b.ReportAllocs()
 		for b.Loop() {
 			values = values[:0]
@@ -457,8 +459,8 @@ func benchmarkForEach_fiveColumns[T, U, V, W, X any](
 		}
 	})
 
-	b.Run("sqlfunc.ForEach-err", func(b *testing.B) {
-		b.Logf("%T", func(a T, b U, c V, d W, e X) error { return nil })
+	b.Run("sqlfunc.ForEach-error", func(b *testing.B) {
+		b.Logf("%T", func(T, U, V, W, X) error { return nil })
 		b.ReportAllocs()
 		for b.Loop() {
 			values = values[:0]
