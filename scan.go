@@ -185,11 +185,12 @@ func (r *runForEach) run(rows *sql.Rows, callback interface{}) (err error) {
 			fn.Call(fnArgs)
 		case 1:
 			// Stop iteration if callback returns false
-			if !fn.Call(fnArgs)[0].Interface().(bool) {
+			if !fn.Call(fnArgs)[0].Bool() {
 				return
 			}
 		case 2:
 			var isError bool
+			// TODO use reflect.TypeAssert (Go 1.25+)
 			if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
 				return // user error: don't wrap
 			}
