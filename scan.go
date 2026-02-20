@@ -79,13 +79,16 @@ func Scan(fnPtr interface{}) {
 	} else { // numOut > 1
 		scanners := make([]interface{}, numOut-1)
 		out := make([]reflect.Value, numOut)
+		for i := range scanners {
+			ptr := reflect.New(fnType.Out(i))
+			scanners[i] = ptr.Interface()
+			out[i] = ptr.Elem()
+		}
 		var err error
 		out[numOut-1] = reflect.ValueOf(&err).Elem()
 		fn = func(in []reflect.Value) []reflect.Value {
-			for i := range scanners {
-				ptr := reflect.New(fnType.Out(i))
-				scanners[i] = ptr.Interface()
-				out[i] = ptr.Elem()
+			for i := range out {
+				out[i].SetZero()
 			}
 			err = in[0].Interface().(*sql.Rows).Scan(scanners...)
 			return out
