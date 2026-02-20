@@ -301,6 +301,182 @@ func ExampleScan_any() {
 	// string "a"
 }
 
+func testForEach_oneColumn[T any](
+	t *testing.T,
+	db interface {
+		PrepareContext(context.Context, string) (*sql.Stmt, error)
+	},
+	query string,
+	nbRows int,
+) {
+	stmt, err := db.PrepareContext(t.Context(), query)
+	defer stmt.Close()
+
+	runQuery := func(t *testing.T) *sql.Rows {
+		rows, err := stmt.QueryContext(t.Context())
+		if err != nil {
+			t.Fatalf("Query: %v", err)
+			return nil
+		}
+		return rows
+	}
+
+	values := make([]T, 0, nbRows)
+
+	t.Run("manual", func(t *testing.T) {
+		values = values[:0]
+		rows := runQuery(t)
+		for rows.Next() {
+			var v T
+			if err = rows.Scan(&v); err != nil {
+				t.Error(err)
+				break
+			}
+			values = append(values, v)
+		}
+		if err = rows.Err(); err != nil {
+			t.Error(err)
+		}
+		if err = rows.Close(); err != nil {
+			t.Error(err)
+		}
+		if len(values) != nbRows {
+			t.Fatal("unexpected result")
+		}
+		t.Logf("values: %#v", values)
+	})
+
+	t.Run("sqlfunc.ForEach-void", func(t *testing.T) {
+		t.Logf("%T", func(T) {})
+		values = values[:0]
+		rows := runQuery(t)
+		err = sqlfunc.ForEach(rows, func(v T) {
+			values = append(values, v)
+		})
+		if err != nil {
+			t.Error(err)
+		}
+		if len(values) != nbRows {
+			t.Fatal("unexpected result")
+		}
+		t.Logf("values: %#v", values)
+	})
+
+	t.Run("sqlfunc.ForEach-error", func(t *testing.T) {
+		t.Logf("%T", func(T) error { return nil })
+		values = values[:0]
+		rows := runQuery(t)
+		err = sqlfunc.ForEach(rows, func(v T) error {
+			values = append(values, v)
+			return nil
+		})
+		if err != nil {
+			t.Error(err)
+		}
+		if len(values) != nbRows {
+			t.Fatal("unexpected result")
+		}
+		t.Logf("values: %#v", values)
+	})
+
+	t.Run("sqlfunc.ForEach-bool", func(t *testing.T) {
+		t.Logf("%T", func(T) bool { return true })
+		values = values[:0]
+		rows := runQuery(t)
+		err = sqlfunc.ForEach(rows, func(v T) bool {
+			values = append(values, v)
+			return true // Continue iterating
+		})
+		if err != nil {
+			t.Error(err)
+		}
+		if len(values) != nbRows {
+			t.Fatal("unexpected result")
+		}
+		t.Logf("values: %#v", values)
+	})
+
+}
+
+func TestForEach_oneColumn(t *testing.T) {
+	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
+	db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
+	if err != nil {
+		log.Printf("Open: %v", err)
+		return
+	}
+	defer db.Close()
+
+	db.SetMaxOpenConns(1)
+
+	const nbRows = 5
+
+	t.Run("oneColumn_int", func(t *testing.T) {
+		var query = `SELECT 1`
+		for i := 2; i <= nbRows; i++ {
+			query += fmt.Sprint(` UNION ALL SELECT `, i)
+		}
+
+		testForEach_oneColumn[int](t, db, query, nbRows)
+	})
+
+	t.Run("oneColumn_string", func(t *testing.T) {
+		var query = `SELECT 'a'`
+		for i := 2; i <= nbRows; i++ {
+			query += fmt.Sprintf(` UNION ALL SELECT '%c'`, rune('a'+i-1))
+		}
+
+		testForEach_oneColumn[string](t, db, query, nbRows)
+	})
+
+	t.Log("Get connection...")
+	conn, err := db.Conn(t.Context())
+	if err != nil {
+		t.Errorf("Conn: %v", err)
+		return
+	}
+
+	t.Log("Create table...")
+	_, err = conn.ExecContext(t.Context(), `CREATE TABLE t1 (dt DATETIME)`)
+	if err != nil {
+		t.Errorf("Create table: %v", err)
+		return
+	}
+	_, err = conn.ExecContext(t.Context(), `INSERT INTO t1 (dt) VALUES (datetime('2026-02-20 15:19:56'))`)
+	if err != nil {
+		t.Errorf("Insert: %v", err)
+		return
+	}
+
+	t.Run("oneColumn_Time", func(t *testing.T) {
+		const query = `SELECT dt FROM t1`
+
+		testForEach_oneColumn[time.Time](t, conn, query, 1)
+	})
+	t.Run("oneColumn_PtrTime", func(t *testing.T) {
+		const query = `SELECT dt FROM t1`
+
+		testForEach_oneColumn[*time.Time](t, conn, query, 1)
+	})
+	t.Run("oneColumn_PtrTimeNULL", func(t *testing.T) {
+		const query = `SELECT NULL FROM t1`
+
+		testForEach_oneColumn[*time.Time](t, conn, query, 1)
+	})
+
+	t.Run("oneColumn_NullTime", func(t *testing.T) {
+		const query = `SELECT dt FROM t1`
+
+		testForEach_oneColumn[sql.NullTime](t, conn, query, 1)
+	})
+
+	t.Run("oneColumn_NullTimeNULL", func(t *testing.T) {
+		const query = `SELECT NULL FROM t1`
+
+		testForEach_oneColumn[sql.NullTime](t, conn, query, 1)
+	})
+}
+
 func benchmarkForEach_oneColumn[T any](
 	b *testing.B,
 	db interface {
@@ -543,6 +719,15 @@ func BenchmarkForEach(b *testing.B) {
 
 		benchmarkForEach_oneColumn[string](b, db, query, nbRows)
 	})
+
+	/*
+		b.Run("oneColumn_Time", func(b *testing.B) {
+			const oneRow = `SELECT CAST(datetime('2026-02-19 11:34:56') AS DATETIME)`
+			var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
+
+			benchmarkForEach_oneColumn[time.Time](b, db, query, nbRows)
+		})
+	*/
 
 	b.Run("fiveColumns", func(b *testing.B) {
 		const oneRow = `SELECT 'abcdefghijklmnopqrstuvwxyz' "str", 1, 2, 'abc', 42.42`
