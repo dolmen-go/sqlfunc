@@ -384,6 +384,25 @@ func benchmarkForEach_oneColumn[T any](
 			}
 		}
 	})
+
+	b.Run("sqlfunc.ForEach-bool", func(b *testing.B) {
+		b.Logf("%T", func(T) bool { return true })
+		b.ReportAllocs()
+		for b.Loop() {
+			values = values[:0]
+			rows := runQuery(b)
+			err = sqlfunc.ForEach(rows, func(n T) bool {
+				values = append(values, n)
+				return true // Continue iterating
+			})
+			if err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
 }
 
 func benchmarkForEach_fiveColumns[T, U, V, W, X any](
@@ -468,6 +487,25 @@ func benchmarkForEach_fiveColumns[T, U, V, W, X any](
 			err = sqlfunc.ForEach(rows, func(a T, b U, c V, d W, e X) error {
 				values = append(values, Row{a, b, c, d, e})
 				return nil
+			})
+			if err != nil {
+				b.Error(err)
+			}
+			if len(values) != nbRows {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+
+	b.Run("sqlfunc.ForEach-bool", func(b *testing.B) {
+		b.Logf("%T", func(T, U, V, W, X) bool { return true })
+		b.ReportAllocs()
+		for b.Loop() {
+			values = values[:0]
+			rows := runQuery(b)
+			err = sqlfunc.ForEach(rows, func(a T, b U, c V, d W, e X) bool {
+				values = append(values, Row{a, b, c, d, e})
+				return true // Continue iterating
 			})
 			if err != nil {
 				b.Error(err)
