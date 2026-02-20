@@ -59,35 +59,35 @@ func Scan(fnPtr interface{}) {
 			panic("func must either take scanners as arguments or return values")
 		}
 		// TODO check that each In:
-		// - either is an sql.Out
-		// - or implements sql.Scanner
+		// - either implements sql.Scanner
 		// - or is an anonymous pointer to a concrete type
 	}
 
 	var fn func(in []reflect.Value) []reflect.Value
 	if numIn > 1 {
 		scanners := make([]interface{}, numIn-1)
-		out := make([]reflect.Value, 1)
+		var err error
+		out := []reflect.Value{reflect.ValueOf(&err).Elem()}
 		fn = func(in []reflect.Value) []reflect.Value {
 			// in[0] is *sql.Rows, scanners follow...
 			for i := range in[1:] {
 				scanners[i] = in[i+1].Interface()
 			}
-			err := in[0].Interface().(*sql.Rows).Scan(scanners...)
-			out[0] = reflect.ValueOf(&err).Elem()
+			err = in[0].Interface().(*sql.Rows).Scan(scanners...)
 			return out
 		}
 	} else { // numOut > 1
 		scanners := make([]interface{}, numOut-1)
 		out := make([]reflect.Value, numOut)
+		var err error
+		out[numOut-1] = reflect.ValueOf(&err).Elem()
 		fn = func(in []reflect.Value) []reflect.Value {
 			for i := range scanners {
 				ptr := reflect.New(fnType.Out(i))
 				scanners[i] = ptr.Interface()
 				out[i] = ptr.Elem()
 			}
-			err := in[0].Interface().(*sql.Rows).Scan(scanners...)
-			out[numOut-1] = reflect.ValueOf(&err).Elem()
+			err = in[0].Interface().(*sql.Rows).Scan(scanners...)
 			return out
 		}
 	}
