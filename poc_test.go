@@ -3,6 +3,7 @@ package sqlfunc_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -171,9 +172,15 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 	args := make([]string, nParams)
 	for i := range nParams {
 		p := params.At(i)
+		typ := p.Type()
+
+		if _, ok := typ.(*types.TypeParam); ok {
+			return fmt.Errorf("parameter %d (type %q) is a type parameter from an enclosing context", i, typ)
+		}
+
 		name := "v" + strconv.Itoa(i)
 		// TODO collect reference to an import in p.Type
-		vars[i] = name + " " + p.Type().String()
+		vars[i] = name + " " + typ.String()
 		args[i] = name
 	}
 
