@@ -132,7 +132,7 @@ func ForEach(rows *sql.Rows, callback any) error {
 		}
 
 		inTypes := make([]reflect.Type, numIn, numIn)
-		for i := 0; i < numIn; i++ {
+		for i := range numIn {
 			inTypes[i] = fnType.In(i)
 		}
 

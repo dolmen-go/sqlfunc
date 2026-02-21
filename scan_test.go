@@ -159,7 +159,7 @@ func TestForEachMulti(t *testing.T) {
 		defer db.Close()
 
 		start := time.Now()
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			rows, err := db.QueryContext(ctx, ``+
 				`SELECT 1`+
 				` UNION ALL`+
