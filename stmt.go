@@ -57,9 +57,9 @@ var _ *sql.DB // Fake var just to have database/sql imported for go doc
 //	// if err != nil ...
 //	err = tx.Commit()
 //	// if err != nil ...
-func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
+func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {
@@ -96,9 +96,9 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 			stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
 			defer stmtTx.Close()
 		}
-		var args []interface{}
+		var args []any
 		if len(in) > firstArg {
-			args = make([]interface{}, len(in)-firstArg)
+			args = make([]any, len(in)-firstArg)
 			for i, a := range in[firstArg:] {
 				args[i] = a.Interface()
 			}
@@ -123,9 +123,9 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) 
 // The function will return values scanned from the [sql.Row] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
-func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
+func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {
@@ -166,14 +166,14 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface
 			stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
 			defer stmtTx.Close()
 		}
-		var args []interface{}
+		var args []any
 		if len(in) > firstArg {
-			args = make([]interface{}, len(in)-firstArg)
+			args = make([]any, len(in)-firstArg)
 			for i, a := range in[firstArg:] {
 				args[i] = a.Interface()
 			}
 		}
-		out := make([]interface{}, numOut-1)
+		out := make([]any, numOut-1)
 		outValues := make([]reflect.Value, numOut)
 		for i := 0; i < numOut-1; i++ {
 			ptr := reflect.New(fnType.Out(i))
@@ -202,9 +202,9 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr interface
 // The function will return an [*sql.Rows] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
-func Query(ctx context.Context, db PrepareConn, query string, fnPtr interface{}) (close func() error, err error) {
+func Query(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {
@@ -228,9 +228,9 @@ func Query(ctx context.Context, db PrepareConn, query string, fnPtr interface{})
 
 	fn := func(in []reflect.Value) []reflect.Value {
 		ctx := in[0].Interface().(context.Context)
-		var args []interface{}
+		var args []any
 		if len(in) > 1 {
-			args = make([]interface{}, len(in)-1)
+			args = make([]any, len(in)-1)
 			for i, a := range in[1:] {
 				args[i] = a.Interface()
 			}

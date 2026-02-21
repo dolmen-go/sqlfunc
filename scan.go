@@ -27,9 +27,9 @@ import (
 // Two styles are available:
 //   - as pointer variables (like [sql.Rows.Scan]): func (rows *sql.Rows, pval1 *int, pval2 *string) error
 //   - as returned values (implies copies): func (rows *sql.Rows) (val1 int, val2 string, err error)
-func Scan(fnPtr interface{}) {
+func Scan(fnPtr any) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {
@@ -65,7 +65,7 @@ func Scan(fnPtr interface{}) {
 
 	var fn func(in []reflect.Value) []reflect.Value
 	if numIn > 1 {
-		scanners := make([]interface{}, numIn-1)
+		scanners := make([]any, numIn-1)
 		var err error
 		out := []reflect.Value{reflect.ValueOf(&err).Elem()}
 		fn = func(in []reflect.Value) []reflect.Value {
@@ -77,7 +77,7 @@ func Scan(fnPtr interface{}) {
 			return out
 		}
 	} else { // numOut > 1
-		scanners := make([]interface{}, numOut-1)
+		scanners := make([]any, numOut-1)
 		out := make([]reflect.Value, numOut)
 		for i := range scanners {
 			ptr := reflect.New(fnType.Out(i))
@@ -102,7 +102,7 @@ func Scan(fnPtr interface{}) {
 // The callback receives the scanned columns values as arguments and may return an error or a bool (false) to stop iterating.
 //
 // rows are closed before returning.
-func ForEach(rows *sql.Rows, callback interface{}) error {
+func ForEach(rows *sql.Rows, callback any) error {
 	fnType := reflect.TypeOf(callback)
 	f := registry.ForEach.Get(fnType)
 	if f == nil {
@@ -132,7 +132,7 @@ func ForEach(rows *sql.Rows, callback interface{}) error {
 		}
 
 		inTypes := make([]reflect.Type, numIn, numIn)
-		for i := 0; i < numIn; i++ {
+		for i := range numIn {
 			inTypes[i] = fnType.In(i)
 		}
 
@@ -151,7 +151,7 @@ type runForEach struct {
 	returnType int
 }
 
-func (r *runForEach) run(rows *sql.Rows, callback interface{}) (err error) {
+func (r *runForEach) run(rows *sql.Rows, callback any) (err error) {
 	defer func() {
 		e := rows.Close()
 		if err == nil {
@@ -165,7 +165,7 @@ func (r *runForEach) run(rows *sql.Rows, callback interface{}) (err error) {
 	}
 
 	numIn := len(r.inTypes)
-	scanners := make([]interface{}, numIn)
+	scanners := make([]any, numIn)
 	fnArgs := make([]reflect.Value, numIn)
 	for i := range scanners {
 		ptr := reflect.New(r.inTypes[i])
