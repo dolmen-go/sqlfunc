@@ -268,7 +268,7 @@ func ExampleScan_any() {
 	}
 	defer db.Close()
 
-	var scan1 func(*sql.Rows, *interface{}) error
+	var scan1 func(*sql.Rows, *any) error
 	rows, err := db.QueryContext(ctx, ``+
 		`SELECT 1`+
 		` UNION ALL`+
@@ -284,7 +284,7 @@ func ExampleScan_any() {
 	sqlfunc.Scan(&scan1)
 
 	for rows.Next() {
-		var v interface{}
+		var v any
 		if err = scan1(rows, &v); err != nil {
 			log.Printf("Scan1: %v", err)
 			return
