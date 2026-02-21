@@ -29,7 +29,7 @@ import (
 //   - as returned values (implies copies): func (rows *sql.Rows) (val1 int, val2 string, err error)
 func Scan(fnPtr any) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {

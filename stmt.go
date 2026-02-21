@@ -59,7 +59,7 @@ var _ *sql.DB // Fake var just to have database/sql imported for go doc
 //	// if err != nil ...
 func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {
@@ -125,7 +125,7 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close f
 // The returned func 'close' must be called once the statement is not needed anymore.
 func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {
@@ -204,7 +204,7 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (clo
 // The returned func 'close' must be called once the statement is not needed anymore.
 func Query(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Ptr {
+	if vPtr.Type().Kind() != reflect.Pointer {
 		panic("fnPtr must be a *pointer* to a func variable")
 	}
 	if vPtr.IsNil() {
