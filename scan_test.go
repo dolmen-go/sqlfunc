@@ -412,21 +412,23 @@ func TestForEach_oneColumn(t *testing.T) {
 	const nbRows = 5
 
 	t.Run("oneColumn_int", func(t *testing.T) {
-		var query = `SELECT 1`
+		var query strings.Builder
+		query.WriteString(`SELECT 1`)
 		for i := 2; i <= nbRows; i++ {
-			query += fmt.Sprint(` UNION ALL SELECT `, i)
+			query.WriteString(fmt.Sprint(` UNION ALL SELECT `, i))
 		}
 
-		testForEach_oneColumn[int](t, db, query, nbRows)
+		testForEach_oneColumn[int](t, db, query.String(), nbRows)
 	})
 
 	t.Run("oneColumn_string", func(t *testing.T) {
-		var query = `SELECT 'a'`
+		var query strings.Builder
+		query.WriteString(`SELECT 'a'`)
 		for i := 2; i <= nbRows; i++ {
-			query += fmt.Sprintf(` UNION ALL SELECT '%c'`, rune('a'+i-1))
+			query.WriteString(fmt.Sprintf(` UNION ALL SELECT '%c'`, rune('a'+i-1)))
 		}
 
-		testForEach_oneColumn[string](t, db, query, nbRows)
+		testForEach_oneColumn[string](t, db, query.String(), nbRows)
 	})
 
 	t.Log("Get connection...")
@@ -705,12 +707,13 @@ func BenchmarkForEach(b *testing.B) {
 	const nbRows = 500
 
 	b.Run("oneColumn_int", func(b *testing.B) {
-		var query = `SELECT 1`
+		var query strings.Builder
+		query.WriteString(`SELECT 1`)
 		for i := 2; i <= nbRows; i++ {
-			query += fmt.Sprint(` UNION ALL SELECT `, i)
+			query.WriteString(fmt.Sprint(` UNION ALL SELECT `, i))
 		}
 
-		benchmarkForEach_oneColumn[int](b, db, query, nbRows)
+		benchmarkForEach_oneColumn[int](b, db, query.String(), nbRows)
 	})
 
 	b.Run("oneColumn_string", func(b *testing.B) {
@@ -748,11 +751,12 @@ func BenchmarkScan(b *testing.B) {
 
 	const nbRows = 500
 
-	var query = "SELECT 1"
+	var query strings.Builder
+	query.WriteString("SELECT 1")
 	for i := 2; i <= nbRows; i++ {
-		query += fmt.Sprint(" UNION ALL SELECT ", i)
+		query.WriteString(fmt.Sprint(" UNION ALL SELECT ", i))
 	}
-	stmt, err := db.PrepareContext(b.Context(), query)
+	stmt, err := db.PrepareContext(b.Context(), query.String())
 	defer stmt.Close()
 
 	runQuery := func(b *testing.B) *sql.Rows {
