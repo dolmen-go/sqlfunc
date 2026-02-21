@@ -723,7 +723,22 @@ func BenchmarkForEach(b *testing.B) {
 		benchmarkForEach_oneColumn[string](b, db, query, nbRows)
 	})
 
+	b.Run("oneColumn_NullString", func(b *testing.B) {
+		const oneRow = `SELECT 'abcdefghijklmnopqrstuvwxyz'`
+		var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
+
+		benchmarkForEach_oneColumn[sql.NullString](b, db, query, nbRows)
+	})
+
+	b.Run("oneColumn_Null[string]", func(b *testing.B) {
+		const oneRow = `SELECT 'abcdefghijklmnopqrstuvwxyz'`
+		var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
+
+		benchmarkForEach_oneColumn[sql.Null[string]](b, db, query, nbRows)
+	})
+
 	/*
+		// This doesn't work with sqlite3 because sqlite3 doesn't expose a DATETIME type but TEXT instead
 		b.Run("oneColumn_Time", func(b *testing.B) {
 			const oneRow = `SELECT CAST(datetime('2026-02-19 11:34:56') AS DATETIME)`
 			var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
@@ -736,7 +751,7 @@ func BenchmarkForEach(b *testing.B) {
 		const oneRow = `SELECT 'abcdefghijklmnopqrstuvwxyz' "str", 1, 2, 'abc', 42.42`
 		var query = oneRow + strings.Repeat(` UNION ALL `+oneRow, nbRows-1)
 
-		benchmarkForEach_fiveColumns[string, int64, int32, string, float64](b, db, query, nbRows)
+		benchmarkForEach_fiveColumns[string, int64, int32, sql.NullString, float64](b, db, query, nbRows)
 	})
 }
 
