@@ -40,6 +40,11 @@ func TestScanSrc(t *testing.T) {
 		t.Log(pkg.Name)
 		ti := pkg.TypesInfo
 
+		gen := &Generator{
+			Pkg:     pkg,
+			Imports: make(map[string]*types.Package),
+		}
+
 		// Each of these is a parsed file.
 		for _, f := range pkg.Syntax {
 
@@ -90,7 +95,7 @@ func TestScanSrc(t *testing.T) {
 					// Function expected:
 					// - literal
 					// - identifier pointing to a func type
-					if err := genForEach(t, pkg, ti.TypeOf(arg).(*types.Signature)); err != nil {
+					if err := gen.genForEach(t, ti.TypeOf(arg).(*types.Signature)); err != nil {
 						t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
 					}
 					// As the argument might be a func literal, we want to go deeper in the AST
@@ -129,20 +134,81 @@ func TestScanSrc(t *testing.T) {
 						)
 					}
 					// t.Logf("%#v", typ)
-					gen(t, pkg, s.Sel.Name, sig)
+					gen.gen(t, s.Sel.Name, sig)
 				}
 				return
 			}, nil)
 		}
+
+		if len(gen.Funcs) > 0 {
+			var buf bytes.Buffer
+			fmt.Fprintf(&buf, "package %s\n\n", pkg.Name)
+
+			if len(gen.Imports) > 0 {
+				buf.WriteString("import (\n")
+				// TODO sort imports for deterministic output
+				for _, imp := range gen.Imports {
+					fmt.Fprintf(&buf, "\t%s %q\n", imp.Name(), imp.Path())
+				}
+				buf.WriteString(")\n")
+			}
+
+			buf.WriteString("\nfunc init() {")
+			for _, f := range gen.Funcs {
+				buf.WriteString(f)
+			}
+			buf.WriteString("}\n")
+
+			t.Log("\n" + buf.String())
+		}
 	}
 }
 
-func gen(tb testing.TB, pkg *packages.Package, f string, sig *types.Signature) {
-	tb.Log(pkg.Name, f, sig)
+type Generator struct {
+	Pkg     *packages.Package
+	Imports map[string]*types.Package
+
+	Funcs []string
 }
 
-func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) error {
-	tb.Log(pkg.Name, "ForEach", sig)
+// The qualifier function is used to determine how to print package-qualified type names in the generated code.
+// It also collects the imports needed for the generated code.
+// It is used in calls to [types.TypeString].
+func (g *Generator) qualifier(other *types.Package) string {
+	if other == g.Pkg.Types {
+		return "" // Same package, no prefix needed
+	}
+	if typPkg, seen := g.Imports[other.Path()]; seen {
+		return typPkg.Name() // Already recorded import, return its name
+	}
+	g.Imports[other.Path()] = other
+	return other.Name()
+}
+
+func (g *Generator) checkTypeScope(typ types.Type) error {
+	if _, ok := typ.(*types.TypeParam); ok {
+		return fmt.Errorf("%q is a type parameter from an enclosing context", types.TypeString(typ, g.qualifier))
+	}
+
+	if named, ok := typ.(*types.Named); ok {
+		obj := named.Obj()
+		// If the type is defined in the current package but not at the package level
+		if obj.Pkg() == g.Pkg.Types && obj.Parent() != g.Pkg.Types.Scope() {
+			return fmt.Errorf("%q is a local type", obj.Name())
+		}
+	}
+
+	// FIXME recurse
+
+	return nil
+}
+
+func (g *Generator) gen(tb testing.TB, f string, sig *types.Signature) {
+	tb.Log(g.Pkg.Name, f, sig)
+}
+
+func (g *Generator) genForEach(tb testing.TB, sig *types.Signature) error {
+	tb.Log(g.Pkg.Name, "ForEach", types.TypeString(sig, g.qualifier))
 
 	if sig.Params().Len() == 0 {
 		return errors.New("function must receive at least one parameter")
@@ -173,95 +239,64 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 	vars := make([]string, nParams)
 	args := make([]string, nParams)
 
-	// Generate the signature string while collecting imports                                                                                        │
-	requiredImports := make(map[string]*types.Package)
-	// The qualifier function is used to determine how to print package-qualified type names in the generated code.
-	// It also collects the imports needed for the generated code.
-	// It is used in calls to TypeString.
-	qualifier := func(other *types.Package) string {
-		if other == pkg.Types {
-			return "" // Same package, no prefix needed
-		}
-		if typPkg, seen := requiredImports[other.Path()]; seen {
-			return typPkg.Name() // Already recorded import, return its name
-		}
-		requiredImports[other.Path()] = other
-		return other.Name()
-	}
-
 	for i := range nParams {
 		p := params.At(i)
 		typ := p.Type()
 
-		if _, ok := typ.(*types.TypeParam); ok {
-			return fmt.Errorf("parameter %d (type %q) is a type parameter from an enclosing context", i, typ)
-		}
-
-		if named, ok := typ.(*types.Named); ok {
-			obj := named.Obj()
-			// If the type is defined in the current package but not at the package level
-			if obj.Pkg() == pkg.Types && obj.Parent() != pkg.Types.Scope() {
-				return fmt.Errorf("parameter %d uses a local type %q", i, obj.Name())
-			}
+		if err := g.checkTypeScope(typ); err != nil {
+			return fmt.Errorf("parameter %d (type %q): %w", i, types.TypeString(typ, g.qualifier), err)
 		}
 
 		name := "v" + strconv.Itoa(i)
 		// TODO collect reference to an import in p.Type
-		vars[i] = name + " " + types.TypeString(typ, qualifier)
+		vars[i] = name + " " + types.TypeString(typ, g.qualifier)
 		args[i] = name
 	}
 
-	sigString := types.TypeString(sig, qualifier)
-	tb.Log("imports:", slices.Collect(maps.Keys(requiredImports)))
+	sigString := types.TypeString(sig, g.qualifier)
+	tb.Log("imports:", slices.Collect(maps.Keys(g.Imports)))
 
 	data := map[string]any{
-		"PackageName": pkg.Name,
-		"Imports":     requiredImports,
-		"Type":        sigString,
-		"WithError":   withError,
-		"WithBool":    withBool,
-		"Vars":        strings.Join(vars, "\n\t\t\t"),
-		"Args":        strings.Join(args, ", "),
-		"ArgsPtr":     "&" + strings.Join(args, ", &"),
+		"Type":      sigString,
+		"WithError": withError,
+		"WithBool":  withBool,
+		"Vars":      strings.Join(vars, "\n\t\t\t"),
+		"Args":      strings.Join(args, ", "),
+		"ArgsPtr":   "&" + strings.Join(args, ", &"),
 	}
 
 	const code = `` +
-		`package {{.PackageName}}
-{{if .Imports}}
-{{- range $path, $pkg := .Imports}}
-import {{$pkg.Name}} "{{$path}}"
-{{- end}}
-{{- end}}
-sqlfunc.Ř.ForEach.Register(({{.Type}})(nil), func(rows *sql.Rows, cb interface{}) (err error) {
-	cb := cb.({{.Type}})
-	defer func() {
-		err2 := rows.Close()
-		if err == nil {
-			err = err2
-		}
-	}()
-	for rows.Next() {
-		var (
-			{{.Vars}}
-		)
-		if err = rows.Scan({{.ArgsPtr}}); err != nil {
-			return
-		}
+		`
+	sqlfunc.Ř.ForEach.Register(({{.Type}})(nil), func(rows *sql.Rows, cb interface{}) (err error) {
+		cb := cb.({{.Type}})
+		defer func() {
+			err2 := rows.Close()
+			if err == nil {
+				err = err2
+			}
+		}()
+		for rows.Next() {
+			var (
+				{{.Vars}}
+			)
+			if err = rows.Scan({{.ArgsPtr}}); err != nil {
+				return
+			}
 {{- if .WithError}}
-		if err = cb({{.Args}}); err != nil {
-			return
-		}
+			if err = cb({{.Args}}); err != nil {
+				return
+			}
 {{- else if .WithBool}}
-		if !cb({{.Args}}) {
-			return
-		}
+			if !cb({{.Args}}) {
+				return
+			}
 {{- else}}
-		cb({{.Args}})
+			cb({{.Args}})
 {{- end}}
-	}
-	err = rows.Err()
-	return
-})
+		}
+		err = rows.Err()
+		return
+	})
 `
 
 	tmpl := template.New("code")
@@ -275,7 +310,9 @@ sqlfunc.Ř.ForEach.Register(({{.Type}})(nil), func(rows *sql.Rows, cb interface{
 		panic(err)
 	}
 
-	tb.Log("\n" + buf.String())
+	// tb.Log("\n" + buf.String())
+
+	g.Funcs = append(g.Funcs, buf.String())
 
 	return nil
 }
