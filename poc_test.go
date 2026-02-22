@@ -7,6 +7,8 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -170,6 +172,7 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 	nParams := params.Len()
 	vars := make([]string, nParams)
 	args := make([]string, nParams)
+
 	for i := range nParams {
 		p := params.At(i)
 		typ := p.Type()
@@ -178,23 +181,51 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 			return fmt.Errorf("parameter %d (type %q) is a type parameter from an enclosing context", i, typ)
 		}
 
+		if named, ok := typ.(*types.Named); ok {
+			obj := named.Obj()
+			// If the type is defined in the current package but not at the package level
+			if obj.Pkg() == pkg.Types && obj.Parent() != pkg.Types.Scope() {
+				return fmt.Errorf("parameter %d uses a local type %q", i, obj.Name())
+			}
+		}
+
 		name := "v" + strconv.Itoa(i)
 		// TODO collect reference to an import in p.Type
 		vars[i] = name + " " + typ.String()
 		args[i] = name
 	}
 
+	// Generate the signature string while collecting imports                                                                                        │
+	requiredImports := make(map[string]*types.Package)
+	qualifier := func(other *types.Package) string {
+		if other == pkg.Types {
+			return "" // Same package, no prefix needed
+		}
+		requiredImports[other.Path()] = other
+		return other.Name()
+	}
+	sigString := types.TypeString(sig, qualifier)
+	tb.Log("imports:", slices.Collect(maps.Keys(requiredImports)))
+
 	data := map[string]any{
-		"Type":      sig.String(),
-		"WithError": withError,
-		"WithBool":  withBool,
-		"Vars":      strings.Join(vars, "\n\t\t\t"),
-		"Args":      strings.Join(args, ", "),
-		"ArgsPtr":   "&" + strings.Join(args, ", &"),
+		"PackageName": pkg.Name,
+		"Imports":     requiredImports,
+		"Type":        sigString,
+		"WithError":   withError,
+		"WithBool":    withBool,
+		"Vars":        strings.Join(vars, "\n\t\t\t"),
+		"Args":        strings.Join(args, ", "),
+		"ArgsPtr":     "&" + strings.Join(args, ", &"),
 	}
 
 	const code = `` +
-		`sqlfunc.Ř.ForEach.Register(({{.Type}})(nil), func(rows *sql.Rows, cb interface{}) (err error) {
+		`package {{.PackageName}}
+{{if .Imports}}
+{{- range $path, $pkg := .Imports}}
+import {{$pkg.Name}} "{{$path}}"
+{{- end}}
+{{- end}}
+sqlfunc.Ř.ForEach.Register(({{.Type}})(nil), func(rows *sql.Rows, cb interface{}) (err error) {
 	cb := cb.({{.Type}})
 	defer func() {
 		err2 := rows.Close()
