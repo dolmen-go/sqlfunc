@@ -173,6 +173,22 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 	vars := make([]string, nParams)
 	args := make([]string, nParams)
 
+	// Generate the signature string while collecting imports                                                                                        │
+	requiredImports := make(map[string]*types.Package)
+	// The qualifier function is used to determine how to print package-qualified type names in the generated code.
+	// It also collects the imports needed for the generated code.
+	// It is used in calls to TypeString.
+	qualifier := func(other *types.Package) string {
+		if other == pkg.Types {
+			return "" // Same package, no prefix needed
+		}
+		if typPkg, seen := requiredImports[other.Path()]; seen {
+			return typPkg.Name() // Already recorded import, return its name
+		}
+		requiredImports[other.Path()] = other
+		return other.Name()
+	}
+
 	for i := range nParams {
 		p := params.At(i)
 		typ := p.Type()
@@ -191,19 +207,10 @@ func genForEach(tb testing.TB, pkg *packages.Package, sig *types.Signature) erro
 
 		name := "v" + strconv.Itoa(i)
 		// TODO collect reference to an import in p.Type
-		vars[i] = name + " " + typ.String()
+		vars[i] = name + " " + types.TypeString(typ, qualifier)
 		args[i] = name
 	}
 
-	// Generate the signature string while collecting imports                                                                                        │
-	requiredImports := make(map[string]*types.Package)
-	qualifier := func(other *types.Package) string {
-		if other == pkg.Types {
-			return "" // Same package, no prefix needed
-		}
-		requiredImports[other.Path()] = other
-		return other.Name()
-	}
 	sigString := types.TypeString(sig, qualifier)
 	tb.Log("imports:", slices.Collect(maps.Keys(requiredImports)))
 
