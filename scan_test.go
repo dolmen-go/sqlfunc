@@ -127,9 +127,9 @@ func ExampleForEach_returnError() {
 		return
 	}
 
-	err = sqlfunc.ForEach(rows, func(n int) error {
-		fmt.Println(n)
-		if n == 2 {
+	err = sqlfunc.ForEach(rows, func(n sql.Null[int64]) error {
+		fmt.Println(n.V)
+		if n.V == 2 {
 			return io.EOF
 		}
 		return nil
