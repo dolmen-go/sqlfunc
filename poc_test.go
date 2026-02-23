@@ -324,7 +324,7 @@ func (f funcCodeForEach) Key() string {
 
 func (funcCodeForEach) Template() string {
 	return `
-	sqlfunc.Ř.ForEach.Register(({{.Signature}})(nil), func(rows *sql.Rows, cb interface{}) (err error) {
+	sqlfunc.Ř.ForEach.Register(({{.Signature}})(nil), func(rows *sql.Rows, cb any) (err error) {
 		cb := cb.({{.Signature}})
 		defer func() {
 			err2 := rows.Close()
