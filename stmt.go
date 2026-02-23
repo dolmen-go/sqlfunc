@@ -57,15 +57,11 @@ var _ *sql.DB // Fake var just to have database/sql imported for go doc
 //	// if err != nil ...
 //	err = tx.Commit()
 //	// if err != nil ...
-func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
-	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Pointer {
-		panic("fnPtr must be a *pointer* to a func variable")
-	}
-	if vPtr.IsNil() {
+func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Func) (close func() error, err error) {
+	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeOf(fnPtr).Elem()
+	fnType := reflect.TypeFor[Func]()
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -107,7 +103,7 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close f
 		return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
 	}
 
-	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
+	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
