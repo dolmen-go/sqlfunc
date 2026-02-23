@@ -19,7 +19,7 @@ var Any AnyAPI
 
 func checkFnPtr(fnPtr any) reflect.Value {
 	fnValue := reflect.ValueOf(fnPtr)
-	if fnValue.Kind() != reflect.Ptr {
+	if fnValue.Kind() != reflect.Pointer {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
 	if fnValue.IsNil() {
