@@ -36,6 +36,11 @@ func Scan[Func any](fnPtr *Func) {
 }
 
 func anyScan(fnType reflect.Type, fnValue reflect.Value) {
+	if fn := registry.Scan.Get(fnType); fn.IsValid() {
+		fnValue.Elem().Set(fn)
+		return
+	}
+
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}

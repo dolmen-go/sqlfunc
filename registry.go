@@ -13,13 +13,18 @@ var registry privateRegistry
 
 func init() {
 	registry.ForEach.init()
+	registry.Scan.init()
 }
 
 type privateRegistry struct {
 	ForEach registryOf[funcForEach]
+	Scan    registryOf[funcScan]
 }
 
-type funcForEach = func(*sql.Rows, any) error
+type (
+	funcForEach = func(*sql.Rows, any) error
+	funcScan    = reflect.Value
+)
 
 type registryOf[T any] struct {
 	disabled uint32
