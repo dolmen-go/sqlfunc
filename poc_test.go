@@ -228,8 +228,8 @@ func (g *Generator) gen(tb testing.TB, f string, sig *types.Signature) {
 }
 
 func (g *Generator) add(registry string, sig *types.Signature, build func(g *Generator, sig *types.Signature) (funcCode, error)) error {
-	// FIXME We are leaking imports
-	key := registry + " " + types.TypeString(sig, g.qualifier)
+	// Note: we don't use g.qualifier here to not leak imports
+	key := registry + " " + types.TypeString(sig, nil)
 
 	// Skip if we already have a function for this signature
 	if _, exists := g.Funcs[key]; exists {
@@ -250,9 +250,6 @@ func (g *Generator) add(registry string, sig *types.Signature, build func(g *Gen
 }
 
 func (g *Generator) genForEach(sig *types.Signature) (funcCode, error) {
-	// FIXME We are leaking imports if we skip due to an error
-	sigString := types.TypeString(sig, g.qualifier)
-
 	if sig.Params().Len() == 0 {
 		return nil, errors.New("function must receive at least one parameter")
 	}
@@ -294,7 +291,7 @@ func (g *Generator) genForEach(sig *types.Signature) (funcCode, error) {
 	}
 
 	code := funcCodeForEach{
-		Signature: sigString,
+		Signature: types.TypeString(sig, g.qualifier),
 		WithError: withError,
 		WithBool:  withBool,
 		Vars:      strings.Join(vars, "\n\t\t\t"),
