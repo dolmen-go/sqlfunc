@@ -132,9 +132,18 @@ func TestScanSrc(t *testing.T) {
 							s.Sel.Name,
 							ident.Name,
 						)
+						return
 					}
 					// t.Logf("%#v", typ)
-					gen.gen(t, s.Sel.Name, sig)
+					if s.Sel.Name == "Scan" {
+						if err = gen.add("Scan", sig, (*Generator).genScan); err != nil {
+							t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
+						}
+						return
+					} else {
+						// TODO Exec, QueryRow, Query
+						gen.gen(t, s.Sel.Name, sig)
+					}
 				}
 				return
 			}, nil)
@@ -351,5 +360,108 @@ func (funcCodeForEach) Template() string {
 		err = rows.Err()
 		return
 	})
+`
+}
+
+func (g *Generator) genScan(sig *types.Signature) (funcCode, error) {
+	params := sig.Params()
+	nParams := params.Len()
+	results := sig.Results()
+	nResults := results.Len()
+
+	isIn := nParams > 1
+	if nParams == 0 {
+		return nil, errors.New("function must receive at least one parameter")
+	}
+	// FIXME improve check to not be dependent on import name ("sql" here)
+	if params.At(0).Type().String() != "*database/sql.Rows" {
+		return nil, errors.New("first parameter must be *sql.Rows:" + params.At(0).Type().String())
+	}
+	if sig.Results().Len() == 0 || sig.Results().At(sig.Results().Len()-1).Type().String() != "error" {
+		return nil, errors.New("function must return exactly one value of type error")
+	}
+	if nParams > 1 && sig.Results().Len() != 1 {
+		return nil, errors.New("if function has more than one parameter, it must return exactly one value of type error")
+	}
+	if nParams == 1 && sig.Results().Len() == 1 {
+		return nil, errors.New("if function has no parameter beyond sql.Rows, it must return values beyond error")
+	}
+
+	var (
+		vars []string
+		args []string
+	)
+
+	for i := range nParams - 1 {
+		p := params.At(i + 1) // skip first parameter which is *sql.Rows
+		typ := p.Type()
+
+		// FIXME TypeScope check failures should not prevent generating code for other signatures
+		if err := g.checkTypeScope(typ); err != nil {
+			return nil, fmt.Errorf("parameter %d (type %q): %w", i+1, types.TypeString(typ, g.qualifier), err)
+		}
+
+		if typ.String()[0] != '*' {
+			return nil, fmt.Errorf("parameter %d (type %q) must be a pointer", i+1, types.TypeString(typ, g.qualifier))
+		}
+
+		name := "v" + strconv.Itoa(i)
+		vars = append(vars, name+" "+types.TypeString(typ, g.qualifier))
+		args = append(args, name)
+	}
+
+	for i := range nResults - 1 {
+		p := results.At(i) // skip last parameter which is error
+		typ := p.Type()
+
+		if err := g.checkTypeScope(typ); err != nil {
+			return nil, fmt.Errorf("result %d (type %q): %w", i+1, types.TypeString(typ, g.qualifier), err)
+		}
+
+		name := "v" + strconv.Itoa(i)
+		vars = append(vars, name+" "+types.TypeString(typ, g.qualifier))
+		args = append(args, name)
+	}
+
+	code := funcCodeScan{
+		Signature: types.TypeString(sig, g.qualifier),
+		Vars:      strings.Join(vars, ", "),
+		Args:      strings.Join(args, ", "),
+		ArgsPtr:   "&" + strings.Join(args, ", &"),
+		IsIn:      isIn,
+	}
+
+	return &code, nil
+}
+
+type funcCodeScan struct {
+	Signature string
+	Vars      string
+	Args      string
+	ArgsPtr   string
+	IsIn      bool
+}
+
+func (f funcCodeScan) Registry() string {
+	return "Scan"
+}
+
+func (f funcCodeScan) Key() string {
+	return f.Registry() + " " + f.Signature
+}
+
+func (funcCodeScan) Template() string {
+	return `
+	sqlfunc.Ř.Scan.Register(
+		({{.Signature}})(nil),
+		reflect.ValueOf(func(rows *sql.Rows{{if .IsIn}}, {{.Vars}}{{end}}) ({{if (not .IsIn)}}{{.Vars}}, err {{end}}error) {
+{{- if .IsIn}}
+			return rows.Scan({{.ArgsPtr}})
+{{- else}}
+			err = rows.Scan({{.ArgsPtr}})
+			return
+{{- end}}
+		}),
+	)
 `
 }
