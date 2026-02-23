@@ -27,15 +27,11 @@ import (
 // Two styles are available:
 //   - as pointer variables (like [sql.Rows.Scan]): func (rows *sql.Rows, pval1 *int, pval2 *string) error
 //   - as returned values (implies copies): func (rows *sql.Rows) (val1 int, val2 string, err error)
-func Scan(fnPtr any) {
-	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Pointer {
-		panic("fnPtr must be a *pointer* to a func variable")
-	}
-	if vPtr.IsNil() {
+func Scan[Func any](fnPtr *Func) {
+	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeOf(fnPtr).Elem()
+	fnType := reflect.TypeFor[Func]()
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -94,7 +90,7 @@ func Scan(fnPtr any) {
 			return out
 		}
 	}
-	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
+	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
 }
 
 // ForEach iterates an [*sql.Rows], scans the values of the row and calls the given callback function with the values.
