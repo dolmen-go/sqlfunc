@@ -119,15 +119,11 @@ func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Fu
 // The function will return values scanned from the [sql.Row] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
-func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
-	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Pointer {
-		panic("fnPtr must be a *pointer* to a func variable")
-	}
-	if vPtr.IsNil() {
+func QueryRow[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Func) (close func() error, err error) {
+	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeOf(fnPtr).Elem()
+	fnType := reflect.TypeFor[Func]()
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -182,7 +178,7 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (clo
 		return outValues
 	}
 
-	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
+	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
@@ -198,15 +194,11 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (clo
 // The function will return an [*sql.Rows] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
-func Query(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
-	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Pointer {
-		panic("fnPtr must be a *pointer* to a func variable")
-	}
-	if vPtr.IsNil() {
+func Query[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Func) (close func() error, err error) {
+	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeOf(fnPtr).Elem()
+	fnType := reflect.TypeFor[Func]()
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -235,7 +227,7 @@ func Query(ctx context.Context, db PrepareConn, query string, fnPtr any) (close 
 		return []reflect.Value{reflect.ValueOf(&rows).Elem(), reflect.ValueOf(&err).Elem()}
 	}
 
-	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
+	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
