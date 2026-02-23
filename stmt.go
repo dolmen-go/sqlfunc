@@ -57,15 +57,14 @@ var _ *sql.DB // Fake var just to have database/sql imported for go doc
 //	// if err != nil ...
 //	err = tx.Commit()
 //	// if err != nil ...
-func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
-	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Pointer {
-		panic("fnPtr must be a *pointer* to a func variable")
-	}
-	if vPtr.IsNil() {
+func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Func) (close func() error, err error) {
+	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeOf(fnPtr).Elem()
+	return anyExec(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+}
+
+func anyExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -107,7 +106,7 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close f
 		return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
 	}
 
-	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
@@ -123,15 +122,14 @@ func Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close f
 // The function will return values scanned from the [sql.Row] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
-func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
-	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Pointer {
-		panic("fnPtr must be a *pointer* to a func variable")
-	}
-	if vPtr.IsNil() {
+func QueryRow[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Func) (close func() error, err error) {
+	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeOf(fnPtr).Elem()
+	return anyQueryRow(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+}
+
+func anyQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -186,7 +184,7 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (clo
 		return outValues
 	}
 
-	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
@@ -202,15 +200,14 @@ func QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (clo
 // The function will return an [*sql.Rows] and an error.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
-func Query(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
-	vPtr := reflect.ValueOf(fnPtr)
-	if vPtr.Type().Kind() != reflect.Pointer {
-		panic("fnPtr must be a *pointer* to a func variable")
-	}
-	if vPtr.IsNil() {
+func Query[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Func) (close func() error, err error) {
+	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeOf(fnPtr).Elem()
+	return anyQuery(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+}
+
+func anyQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -239,7 +236,7 @@ func Query(ctx context.Context, db PrepareConn, query string, fnPtr any) (close 
 		return []reflect.Value{reflect.ValueOf(&rows).Elem(), reflect.ValueOf(&err).Elem()}
 	}
 
-	vPtr.Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
