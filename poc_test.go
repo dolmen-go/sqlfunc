@@ -7,8 +7,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"maps"
-	"slices"
+	"io"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,7 +36,7 @@ func TestScanSrc(t *testing.T) {
 
 	// Lint each package we find.
 	for _, pkg := range pkgs {
-		t.Log(pkg.Name)
+		t.Log("Package", pkg.Name)
 		ti := pkg.TypesInfo
 
 		gen := &Generator{
@@ -95,9 +94,10 @@ func TestScanSrc(t *testing.T) {
 					// Function expected:
 					// - literal
 					// - identifier pointing to a func type
-					if err := gen.genForEach(t, ti.TypeOf(arg).(*types.Signature)); err != nil {
+					if err := gen.add("ForEach", ti.TypeOf(arg).(*types.Signature), (*Generator).genForEach); err != nil {
 						t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
 					}
+
 					// As the argument might be a func literal, we want to go deeper in the AST
 					return true
 				default:
@@ -155,7 +155,7 @@ func TestScanSrc(t *testing.T) {
 
 			buf.WriteString("\nfunc init() {")
 			for _, f := range gen.Funcs {
-				buf.WriteString(f)
+				printFuncCode(&buf, f)
 			}
 			buf.WriteString("}\n")
 
@@ -164,11 +164,31 @@ func TestScanSrc(t *testing.T) {
 	}
 }
 
+type funcCode interface {
+	Registry() string
+	// Template returns a text/template that will be executed to generate the code for this function.
+	Template() string
+}
+
+func printFuncCode(w io.Writer, f interface{ Template() string }) error {
+	tmpl := template.New("code")
+	tmpl, err := tmpl.Parse(f.Template())
+	if err != nil {
+		return fmt.Errorf("Parse template: %w", err)
+	}
+
+	if err = tmpl.Execute(w, f); err != nil {
+		return fmt.Errorf("Execute template: %w", err)
+	}
+
+	return nil
+}
+
 type Generator struct {
 	Pkg     *packages.Package
 	Imports map[string]*types.Package
 
-	Funcs []string
+	Funcs map[string]funcCode
 }
 
 // The qualifier function is used to determine how to print package-qualified type names in the generated code.
@@ -207,15 +227,35 @@ func (g *Generator) gen(tb testing.TB, f string, sig *types.Signature) {
 	tb.Log(g.Pkg.Name, f, sig)
 }
 
-func (g *Generator) genForEach(tb testing.TB, sig *types.Signature) error {
-	tb.Log(g.Pkg.Name, "ForEach", types.TypeString(sig, g.qualifier))
+func (g *Generator) add(registry string, sig *types.Signature, build func(g *Generator, sig *types.Signature) (funcCode, error)) error {
+	// FIXME We are leaking imports
+	key := registry + " " + types.TypeString(sig, g.qualifier)
+
+	// Skip if we already have a function for this signature
+	if _, exists := g.Funcs[key]; exists {
+		return nil
+	}
+	f, err := build(g, sig)
+	if err != nil {
+		return err
+	}
+	if f == nil {
+		return nil
+	}
+	if g.Funcs == nil {
+		g.Funcs = make(map[string]funcCode)
+	}
+	g.Funcs[key] = f
+	return nil
+}
+
+func (g *Generator) genForEach(sig *types.Signature) (funcCode, error) {
+	// FIXME We are leaking imports if we skip due to an error
+	sigString := types.TypeString(sig, g.qualifier)
 
 	if sig.Params().Len() == 0 {
-		return errors.New("function must receive at least one parameter")
+		return nil, errors.New("function must receive at least one parameter")
 	}
-
-	// FIXME We should check if all types of args are available at the package scope (not types defined locally in a function)
-	// and skip because we will not be able to generate code that reference those types
 
 	var withError, withBool bool
 	switch sig.Results().Len() {
@@ -231,7 +271,7 @@ func (g *Generator) genForEach(tb testing.TB, sig *types.Signature) error {
 		}
 		fallthrough
 	default:
-		return errors.New("only one return value allowed of type error")
+		return nil, errors.New("only one return value allowed of type error or bool")
 	}
 
 	params := sig.Params()
@@ -243,32 +283,49 @@ func (g *Generator) genForEach(tb testing.TB, sig *types.Signature) error {
 		p := params.At(i)
 		typ := p.Type()
 
+		// FIXME TypeScope check failures should not prevent generating code for other signatures
 		if err := g.checkTypeScope(typ); err != nil {
-			return fmt.Errorf("parameter %d (type %q): %w", i, types.TypeString(typ, g.qualifier), err)
+			return nil, fmt.Errorf("parameter %d (type %q): %w", i, types.TypeString(typ, g.qualifier), err)
 		}
 
 		name := "v" + strconv.Itoa(i)
-		// TODO collect reference to an import in p.Type
 		vars[i] = name + " " + types.TypeString(typ, g.qualifier)
 		args[i] = name
 	}
 
-	sigString := types.TypeString(sig, g.qualifier)
-	tb.Log("imports:", slices.Collect(maps.Keys(g.Imports)))
-
-	data := map[string]any{
-		"Type":      sigString,
-		"WithError": withError,
-		"WithBool":  withBool,
-		"Vars":      strings.Join(vars, "\n\t\t\t"),
-		"Args":      strings.Join(args, ", "),
-		"ArgsPtr":   "&" + strings.Join(args, ", &"),
+	code := funcCodeForEach{
+		Signature: sigString,
+		WithError: withError,
+		WithBool:  withBool,
+		Vars:      strings.Join(vars, "\n\t\t\t"),
+		Args:      strings.Join(args, ", "),
+		ArgsPtr:   "&" + strings.Join(args, ", &"),
 	}
 
-	const code = `` +
-		`
-	sqlfunc.Ř.ForEach.Register(({{.Type}})(nil), func(rows *sql.Rows, cb interface{}) (err error) {
-		cb := cb.({{.Type}})
+	return &code, nil
+}
+
+type funcCodeForEach struct {
+	Signature string
+	WithError bool
+	WithBool  bool
+	Vars      string
+	Args      string
+	ArgsPtr   string
+}
+
+func (funcCodeForEach) Registry() string {
+	return "ForEach"
+}
+
+func (f funcCodeForEach) Key() string {
+	return f.Registry() + " " + f.Signature
+}
+
+func (funcCodeForEach) Template() string {
+	return `
+	sqlfunc.Ř.ForEach.Register(({{.Signature}})(nil), func(rows *sql.Rows, cb interface{}) (err error) {
+		cb := cb.({{.Signature}})
 		defer func() {
 			err2 := rows.Close()
 			if err == nil {
@@ -298,21 +355,4 @@ func (g *Generator) genForEach(tb testing.TB, sig *types.Signature) error {
 		return
 	})
 `
-
-	tmpl := template.New("code")
-	tmpl, err := tmpl.Parse(code)
-	if err != nil {
-		panic(err)
-	}
-
-	var buf bytes.Buffer
-	if err = tmpl.Execute(&buf, data); err != nil {
-		panic(err)
-	}
-
-	// tb.Log("\n" + buf.String())
-
-	g.Funcs = append(g.Funcs, buf.String())
-
-	return nil
 }
