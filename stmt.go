@@ -61,7 +61,10 @@ func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Fu
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeFor[Func]()
+	return anyExec(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+}
+
+func anyExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -103,7 +106,7 @@ func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Fu
 		return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
 	}
 
-	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
@@ -123,7 +126,10 @@ func QueryRow[Func any](ctx context.Context, db PrepareConn, query string, fnPtr
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeFor[Func]()
+	return anyQueryRow(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+}
+
+func anyQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -178,7 +184,7 @@ func QueryRow[Func any](ctx context.Context, db PrepareConn, query string, fnPtr
 		return outValues
 	}
 
-	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }
@@ -198,7 +204,10 @@ func Query[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *F
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeFor[Func]()
+	return anyQuery(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+}
+
+func anyQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -227,7 +236,7 @@ func Query[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *F
 		return []reflect.Value{reflect.ValueOf(&rows).Elem(), reflect.ValueOf(&err).Elem()}
 	}
 
-	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
 
 	return stmt.Close, nil
 }

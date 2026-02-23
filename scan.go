@@ -32,6 +32,10 @@ func Scan[Func any](fnPtr *Func) {
 		panic("fnPtr must be non-nil")
 	}
 	fnType := reflect.TypeFor[Func]()
+	anyScan(fnType, reflect.ValueOf(fnPtr))
+}
+
+func anyScan(fnType reflect.Type, fnValue reflect.Value) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -90,7 +94,7 @@ func Scan[Func any](fnPtr *Func) {
 			return out
 		}
 	}
-	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
 }
 
 // ForEach iterates an [*sql.Rows], scans the values of the row and calls the given callback function with the values.
