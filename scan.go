@@ -148,7 +148,7 @@ func ForEach(rows *sql.Rows, callback any) error {
 			returnType: returnType,
 		}).run
 		// Register in the background
-		go registry.ForEach.Register(callback, f)
+		go registry.ForEach.Register(fnType, f)
 	}
 	return f(rows, callback)
 }

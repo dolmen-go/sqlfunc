@@ -50,8 +50,8 @@ func (r *registryOf[T]) Get(typ reflect.Type) T {
 	return r.r[typ]
 }
 
-func (r *registryOf[T]) Register(t any, v T) {
+func (r *registryOf[T]) Register(typ reflect.Type, v T) {
 	r.m.Lock()
 	defer r.m.Unlock()
-	r.r[reflect.TypeOf(t)] = v
+	r.r[typ] = v
 }
