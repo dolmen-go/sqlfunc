@@ -151,7 +151,7 @@ func TestScanSrc(t *testing.T) {
 
 		if len(gen.Funcs) > 0 {
 			var buf bytes.Buffer
-			fmt.Fprintf(&buf, "package %s\n\n", pkg.Name)
+			fmt.Fprintf(&buf, "package %s\n\n"+`import "github.com/dolmen-go/sqlfunc/sqlfunc_registry"`+"\n\n", pkg.Name)
 
 			if len(gen.Imports) > 0 {
 				buf.WriteString("import (\n")
@@ -330,7 +330,7 @@ func (f funcCodeForEach) Key() string {
 
 func (funcCodeForEach) Template() string {
 	return `
-	sqlfunc.Ř.ForEach.Register(({{.Signature}})(nil), func(rows *sql.Rows, cb any) (err error) {
+	sqlfunc_registry.ForEach(({{.Signature}})(nil), func(rows *sql.Rows, cb any) (err error) {
 		cb := cb.({{.Signature}})
 		defer func() {
 			err2 := rows.Close()
@@ -452,7 +452,7 @@ func (f funcCodeScan) Key() string {
 
 func (funcCodeScan) Template() string {
 	return `
-	sqlfunc.Ř.Scan.Register(
+	sqlfunc_registry.Scan(
 		({{.Signature}})(nil),
 		reflect.ValueOf(func(rows *sql.Rows{{if .IsIn}}, {{.Vars}}{{end}}) ({{if (not .IsIn)}}{{.Vars}}, err {{end}}error) {
 {{- if .IsIn}}
