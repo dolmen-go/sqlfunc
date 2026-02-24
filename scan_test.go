@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/dolmen-go/sqlfunc"
+	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
 func ExampleForEach() {
@@ -181,9 +182,9 @@ func TestForEachMulti(t *testing.T) {
 		}
 	}
 
-	sqlfunc.InternalRegistry.ForEach.Disable(true)
+	registry.ForEach.Disable(true)
 	t.Run("registryDISABLED", testForEachMulti)
-	sqlfunc.InternalRegistry.ForEach.Disable(false)
+	registry.ForEach.Disable(false)
 	t.Run("registryENABLED", testForEachMulti)
 }
 

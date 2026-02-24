@@ -19,6 +19,8 @@ package sqlfunc
 import (
 	"database/sql"
 	"reflect"
+
+	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
 // Scan allows to define a function that will scan one row from an [*sql.Rows].
@@ -36,7 +38,7 @@ func Scan[Func any](fnPtr *Func) {
 }
 
 func anyScan(fnType reflect.Type, fnValue reflect.Value) {
-	if fn := registry.Scan.Get(fnType); fn.IsValid() {
+	if fn := registryScan(fnType); fn.IsValid() {
 		fnValue.Elem().Set(fn)
 		return
 	}
@@ -109,7 +111,7 @@ func anyScan(fnType reflect.Type, fnValue reflect.Value) {
 // rows are closed before returning.
 func ForEach(rows *sql.Rows, callback any) error {
 	fnType := reflect.TypeOf(callback)
-	f := registry.ForEach.Get(fnType)
+	f := registryForEach(fnType)
 	if f == nil {
 
 		if fnType.Kind() != reflect.Func {
