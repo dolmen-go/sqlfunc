@@ -10,16 +10,19 @@ import (
 func init() {
 	ForEach.init()
 	Scan.init()
+	Stmt.init()
 }
 
 var (
 	ForEach registryOf[FuncForEach]
 	Scan    registryOf[FuncScan]
+	Stmt    registryOf[FuncStmt]
 )
 
 type (
 	FuncForEach = func(*sql.Rows, any) error
 	FuncScan    = reflect.Value
+	FuncStmt    = func(stmt *sql.Stmt) reflect.Value // Exec, QueryRow, Query
 )
 
 type registryOf[T any] struct {
