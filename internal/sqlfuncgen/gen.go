@@ -143,6 +143,11 @@ func Generate(t testing.TB, patterns ...string) {
 							t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
 						}
 						return
+					} else if s.Sel.Name == "Exec" {
+						if err = gen.add("Exec", sig, (*Generator).genExec); err != nil {
+							t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
+						}
+						return
 					} else {
 						// TODO Exec, QueryRow, Query
 						gen.gen(t, s.Sel.Name, sig)
@@ -466,6 +471,118 @@ func (funcCodeScan) Template() string {
 			return
 {{- end}}
 		}),
+	)
+`
+}
+
+func (g *Generator) genExec(sig *types.Signature) (funcCode, error) {
+	params := sig.Params()
+	nParams := params.Len()
+	results := sig.Results()
+	nResults := results.Len()
+
+	if nParams == 0 {
+		return nil, errors.New("function must receive at least one parameter")
+	}
+	// FIXME improve check to not be dependent on import name ("context" here)
+	if params.At(0).Type().String() != "context.Context" {
+		return nil, errors.New("first parameter must be context.Context:" + params.At(0).Type().String())
+	}
+	if nResults != 2 {
+		return nil, errors.New("must return 2 results")
+	}
+	if results.At(0).Type().String() != "database/sql.Result" {
+		return nil, errors.New("function must return an sql.Result")
+	}
+	if results.At(1).Type().String() != "error" {
+		return nil, errors.New("function must return an error")
+	}
+
+	var (
+		vars       []string
+		args       []string
+		firstParam = 1
+		txType     types.Type
+	)
+	if nParams > 1 {
+		typ1 := params.At(1).Type()
+		if typ, ok := typ1.(*types.Pointer); ok {
+			typ1 = typ.Elem()
+		}
+		// Look for a type that implements interface { StmtContext() }
+		if typ, ok := typ1.(interface {
+			Method(i int) *types.Func
+			NumMethods() int
+		}); ok && typ.NumMethods() > 0 {
+			for i := range typ.NumMethods() {
+				if typ.Method(i).Name() == "StmtContext" {
+					txType = params.At(1).Type()
+					firstParam++
+					break
+				}
+			}
+		}
+
+		for i := range nParams - firstParam {
+			p := params.At(i + firstParam) // skip first parameter which is *sql.Rows
+			typ := p.Type()
+
+			// FIXME TypeScope check failures should not prevent generating code for other signatures
+			if err := g.checkTypeScope(typ); err != nil {
+				return nil, fmt.Errorf("parameter %d (type %q): %w", i+firstParam, types.TypeString(typ, g.qualifier), err)
+			}
+
+			name := "v" + strconv.Itoa(i)
+			vars = append(vars, name+" "+types.TypeString(typ, g.qualifier))
+			args = append(args, name)
+		}
+	}
+
+	code := funcCodeExec{
+		Signature: types.TypeString(sig, g.qualifier),
+		Vars:      strings.Join(vars, ", "),
+		Args:      strings.Join(args, ", "),
+		TxType: func() string {
+			if txType == nil {
+				return ""
+			}
+			return types.TypeString(txType, g.qualifier)
+		}(),
+	}
+
+	return &code, nil
+}
+
+type funcCodeExec struct {
+	Signature string
+	Vars      string
+	Args      string
+	TxType    string
+}
+
+func (f funcCodeExec) Registry() string {
+	return "Exec"
+}
+
+func (f funcCodeExec) Key() string {
+	return f.Registry() + " " + f.Signature
+}
+
+func (funcCodeExec) Template() string {
+	return `
+	sqlfuncregistry.Exec[{{.Signature}}](
+		func(stmt *sql.Stmt) reflect.Value {
+			return reflect.ValueOf(func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .Vars}}, {{.Vars}}{{end}}) (sql.Result, error) {
+{{- if .TxType }}
+				stmtTx := stmt
+				if tx != nil {
+					stmtTx = tx.StmtContext(ctx, stmt)
+					defer stmtTx.Close()
+				}
+{{- end }}
+				return stmt{{ if .TxType }}Tx{{ end }}.ExecContext(ctx{{if .Args}}, {{ .Args }}{{end}})
+			})
+		},
 	)
 `
 }
