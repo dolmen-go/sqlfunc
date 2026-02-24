@@ -303,7 +303,7 @@ func (g *Generator) genForEach(sig *types.Signature) (funcCode, error) {
 		Signature: types.TypeString(sig, g.qualifier),
 		WithError: withError,
 		WithBool:  withBool,
-		Vars:      strings.Join(vars, "\n\t\t\t"),
+		Vars:      strings.Join(vars, "\n\t\t\t\t"),
 		Args:      strings.Join(args, ", "),
 		ArgsPtr:   "&" + strings.Join(args, ", &"),
 	}
