@@ -143,8 +143,8 @@ func Generate(t testing.TB, patterns ...string) {
 							t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
 						}
 						return
-					} else if s.Sel.Name == "Exec" {
-						if err = gen.add("Exec", sig, (*Generator).genExec); err != nil {
+					} else if s.Sel.Name == "Exec" || s.Sel.Name == "Query" {
+						if err = gen.add(s.Sel.Name, sig, (*Generator).genStmt); err != nil {
 							t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
 						}
 						return
@@ -246,7 +246,7 @@ func (g *Generator) gen(tb testing.TB, f string, sig *types.Signature) {
 	tb.Log(g.Pkg.Name, f, sig)
 }
 
-func (g *Generator) add(registry string, sig *types.Signature, build func(g *Generator, sig *types.Signature) (funcCode, error)) error {
+func (g *Generator) add(registry string, sig *types.Signature, build func(g *Generator, registry string, sig *types.Signature) (funcCode, error)) error {
 	// Note: we don't use g.qualifier here to not leak imports
 	key := registry + " " + types.TypeString(sig, nil)
 
@@ -254,7 +254,7 @@ func (g *Generator) add(registry string, sig *types.Signature, build func(g *Gen
 	if _, exists := g.Funcs[key]; exists {
 		return nil
 	}
-	f, err := build(g, sig)
+	f, err := build(g, registry, sig)
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func (g *Generator) add(registry string, sig *types.Signature, build func(g *Gen
 	return nil
 }
 
-func (g *Generator) genForEach(sig *types.Signature) (funcCode, error) {
+func (g *Generator) genForEach(_ string, sig *types.Signature) (funcCode, error) {
 	if sig.Params().Len() == 0 {
 		return nil, errors.New("function must receive at least one parameter")
 	}
@@ -373,7 +373,7 @@ func (funcCodeForEach) Template() string {
 `
 }
 
-func (g *Generator) genScan(sig *types.Signature) (funcCode, error) {
+func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
 	params := sig.Params()
 	nParams := params.Len()
 	results := sig.Results()
@@ -475,7 +475,7 @@ func (funcCodeScan) Template() string {
 `
 }
 
-func (g *Generator) genExec(sig *types.Signature) (funcCode, error) {
+func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, error) {
 	params := sig.Params()
 	nParams := params.Len()
 	results := sig.Results()
@@ -488,14 +488,31 @@ func (g *Generator) genExec(sig *types.Signature) (funcCode, error) {
 	if params.At(0).Type().String() != "context.Context" {
 		return nil, errors.New("first parameter must be context.Context:" + params.At(0).Type().String())
 	}
-	if nResults != 2 {
-		return nil, errors.New("must return 2 results")
-	}
-	if results.At(0).Type().String() != "database/sql.Result" {
-		return nil, errors.New("function must return an sql.Result")
-	}
-	if results.At(1).Type().String() != "error" {
-		return nil, errors.New("function must return an error")
+	switch stmtName {
+	case "Exec":
+		if nResults != 2 {
+			return nil, errors.New("must return 2 results")
+		}
+		if results.At(0).Type().String() != "database/sql.Result" {
+			return nil, errors.New("function must return an sql.Result")
+		}
+		if results.At(results.Len()-1).Type().String() != "error" {
+			return nil, errors.New("function must return an error")
+		}
+	case "Query":
+		if nResults != 2 {
+			return nil, errors.New("must return 2 results")
+		}
+		if results.At(0).Type().String() != "*database/sql.Rows" {
+			return nil, errors.New("function must return an *sql.Rows")
+		}
+		if results.At(results.Len()-1).Type().String() != "error" {
+			return nil, errors.New("function must return an error")
+		}
+	case "QueryRow":
+		// FIXME handle return:
+		// - either sql.Row (no error)
+		// - or scanned variables, and error
 	}
 
 	var (
@@ -538,10 +555,12 @@ func (g *Generator) genExec(sig *types.Signature) (funcCode, error) {
 		}
 	}
 
-	code := funcCodeExec{
+	code := funcCodeStmt{
+		StmtName:  stmtName,
 		Signature: types.TypeString(sig, g.qualifier),
 		Vars:      strings.Join(vars, ", "),
 		Args:      strings.Join(args, ", "),
+		RetType:   types.TypeString(results.At(0).Type(), g.qualifier),
 		TxType: func() string {
 			if txType == nil {
 				return ""
@@ -553,26 +572,28 @@ func (g *Generator) genExec(sig *types.Signature) (funcCode, error) {
 	return &code, nil
 }
 
-type funcCodeExec struct {
+type funcCodeStmt struct {
+	StmtName  string
 	Signature string
 	Vars      string
 	Args      string
+	RetType   string
 	TxType    string
 }
 
-func (f funcCodeExec) Registry() string {
-	return "Exec"
+func (f funcCodeStmt) Registry() string {
+	return f.StmtName
 }
 
-func (f funcCodeExec) Key() string {
+func (f funcCodeStmt) Key() string {
 	return f.Registry() + " " + f.Signature
 }
 
-func (funcCodeExec) Template() string {
+func (funcCodeStmt) Template() string {
 	return `
-	sqlfuncregistry.Exec[{{.Signature}}](
+	sqlfuncregistry.{{.StmtName}}[{{.Signature}}](
 		func(stmt *sql.Stmt) reflect.Value {
-			return reflect.ValueOf(func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .Vars}}, {{.Vars}}{{end}}) (sql.Result, error) {
+			return reflect.ValueOf(func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .Vars}}, {{.Vars}}{{end}}) ({{.RetType}}, error) {
 {{- if .TxType }}
 				stmtTx := stmt
 				if tx != nil {
@@ -580,7 +601,7 @@ func (funcCodeExec) Template() string {
 					defer stmtTx.Close()
 				}
 {{- end }}
-				return stmt{{ if .TxType }}Tx{{ end }}.ExecContext(ctx{{if .Args}}, {{ .Args }}{{end}})
+				return stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .Args}}, {{ .Args }}{{end}})
 			})
 		},
 	)
