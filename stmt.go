@@ -65,22 +65,24 @@ func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Fu
 }
 
 func anyExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
-	if fnType.Kind() != reflect.Func {
-		panic("fnPtr must be a pointer to a *func* variable")
-	}
-	numIn := fnType.NumIn()
-	if numIn < 1 || fnType.In(0) != typeContext {
-		panic("func first arg must be a context.Context")
-	}
-	// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
+	makeFn := registryExec(fnType)
 	withTx := false
-	var firstArg = 1
-	if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
-		withTx = true
-		firstArg = 2
-	}
-	if fnType.NumOut() != 2 || fnType.Out(0) != typeResult || fnType.Out(1) != typeError {
-		panic("func must return (sql.Result, error)")
+
+	if makeFn == nil {
+		if fnType.Kind() != reflect.Func {
+			panic("fnPtr must be a pointer to a *func* variable")
+		}
+		numIn := fnType.NumIn()
+		if numIn < 1 || fnType.In(0) != typeContext {
+			panic("func first arg must be a context.Context")
+		}
+		// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
+		if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
+			withTx = true
+		}
+		if fnType.NumOut() != 2 || fnType.Out(0) != typeResult || fnType.Out(1) != typeError {
+			panic("func must return (sql.Result, error)")
+		}
 	}
 
 	stmt, err := db.PrepareContext(ctx, query)
@@ -88,25 +90,34 @@ func anyExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query str
 		return func() error { return nil }, err
 	}
 
-	fn := func(in []reflect.Value) []reflect.Value {
-		ctx := in[0].Interface().(context.Context)
-		stmtTx := stmt
-		if withTx && !in[1].IsNil() {
-			stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
-			defer stmtTx.Close()
+	var fn reflect.Value
+	if makeFn != nil {
+		fn = makeFn(stmt)
+	} else {
+		firstArg := 1
+		if withTx {
+			firstArg = 2
 		}
-		var args []any
-		if len(in) > firstArg {
-			args = make([]any, len(in)-firstArg)
-			for i, a := range in[firstArg:] {
-				args[i] = a.Interface()
+		fn = reflect.MakeFunc(fnType, func(in []reflect.Value) []reflect.Value {
+			ctx := in[0].Interface().(context.Context)
+			stmtTx := stmt
+			if withTx && !in[1].IsNil() {
+				stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
+				defer stmtTx.Close()
 			}
-		}
-		r, err := stmtTx.ExecContext(ctx, args...)
-		return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
+			var args []any
+			if len(in) > firstArg {
+				args = make([]any, len(in)-firstArg)
+				for i, a := range in[firstArg:] {
+					args[i] = a.Interface()
+				}
+			}
+			r, err := stmtTx.ExecContext(ctx, args...)
+			return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
+		})
 	}
 
-	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(fn)
 
 	return stmt.Close, nil
 }
@@ -130,26 +141,28 @@ func QueryRow[Func any](ctx context.Context, db PrepareConn, query string, fnPtr
 }
 
 func anyQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
-	if fnType.Kind() != reflect.Func {
-		panic("fnPtr must be a pointer to a *func* variable")
-	}
-	numIn := fnType.NumIn()
-	if numIn < 1 || fnType.In(0) != typeContext {
-		panic("func first arg must be a context.Context")
-	}
-	// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
+	makeFn := registryQueryRow(fnType)
 	withTx := false
-	var firstArg = 1
-	if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
-		withTx = true
-		firstArg = 2
-	}
-	numOut := fnType.NumOut()
-	if numOut < 2 {
-		panic("func must return at least one column")
-	}
-	if fnType.Out(numOut-1) != typeError {
-		panic("func must return an error")
+
+	if makeFn == nil {
+		if fnType.Kind() != reflect.Func {
+			panic("fnPtr must be a pointer to a *func* variable")
+		}
+		numIn := fnType.NumIn()
+		if numIn < 1 || fnType.In(0) != typeContext {
+			panic("func first arg must be a context.Context")
+		}
+		// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
+		if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
+			withTx = true
+		}
+		numOut := fnType.NumOut()
+		if numOut < 2 {
+			panic("func must return at least one column")
+		}
+		if fnType.Out(numOut-1) != typeError {
+			panic("func must return an error")
+		}
 	}
 
 	stmt, err := db.PrepareContext(ctx, query)
@@ -157,34 +170,44 @@ func anyQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query
 		return func() error { return nil }, err
 	}
 
-	fn := func(in []reflect.Value) []reflect.Value {
-		ctx := in[0].Interface().(context.Context)
-		stmtTx := stmt
-		if withTx && !in[1].IsNil() {
-			stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
-			defer stmtTx.Close()
+	var fn reflect.Value
+	if makeFn != nil {
+		fn = makeFn(stmt)
+	} else {
+		firstArg := 1
+		if withTx {
+			firstArg = 2
 		}
-		var args []any
-		if len(in) > firstArg {
-			args = make([]any, len(in)-firstArg)
-			for i, a := range in[firstArg:] {
-				args[i] = a.Interface()
+		numOut := fnType.NumOut()
+		fn = reflect.MakeFunc(fnType, func(in []reflect.Value) []reflect.Value {
+			ctx := in[0].Interface().(context.Context)
+			stmtTx := stmt
+			if withTx && !in[1].IsNil() {
+				stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
+				defer stmtTx.Close()
 			}
-		}
-		out := make([]any, numOut-1)
-		outValues := make([]reflect.Value, numOut)
-		for i := 0; i < numOut-1; i++ {
-			ptr := reflect.New(fnType.Out(i))
-			out[i] = ptr.Interface()
-			outValues[i] = ptr.Elem()
-		}
+			var args []any
+			if len(in) > firstArg {
+				args = make([]any, len(in)-firstArg)
+				for i, a := range in[firstArg:] {
+					args[i] = a.Interface()
+				}
+			}
+			out := make([]any, numOut-1)
+			outValues := make([]reflect.Value, numOut)
+			for i := 0; i < numOut-1; i++ {
+				ptr := reflect.New(fnType.Out(i))
+				out[i] = ptr.Interface()
+				outValues[i] = ptr.Elem()
+			}
 
-		err := stmtTx.QueryRowContext(ctx, args...).Scan(out...)
-		outValues[numOut-1] = reflect.ValueOf(&err).Elem()
-		return outValues
+			err := stmtTx.QueryRowContext(ctx, args...).Scan(out...)
+			outValues[numOut-1] = reflect.ValueOf(&err).Elem()
+			return outValues
+		})
 	}
 
-	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(fn)
 
 	return stmt.Close, nil
 }
@@ -208,14 +231,20 @@ func Query[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *F
 }
 
 func anyQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
-	if fnType.Kind() != reflect.Func {
-		panic("fnPtr must be a pointer to a *func* variable")
-	}
-	if fnType.NumIn() < 1 || fnType.In(0) != typeContext {
-		panic("func first arg must be a context.Context")
-	}
-	if fnType.NumOut() != 2 || fnType.Out(0) != typeRows || fnType.Out(1) != typeError {
-		panic("func must return (*sql.Rows, error)")
+	// FIXME add support for *sql.Tx arg
+
+	makeFn := registryQuery(fnType)
+
+	if makeFn == nil {
+		if fnType.Kind() != reflect.Func {
+			panic("fnPtr must be a pointer to a *func* variable")
+		}
+		if fnType.NumIn() < 1 || fnType.In(0) != typeContext {
+			panic("func first arg must be a context.Context")
+		}
+		if fnType.NumOut() != 2 || fnType.Out(0) != typeRows || fnType.Out(1) != typeError {
+			panic("func must return (*sql.Rows, error)")
+		}
 	}
 
 	stmt, err := db.PrepareContext(ctx, query)
@@ -223,20 +252,25 @@ func anyQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query st
 		return func() error { return nil }, err
 	}
 
-	fn := func(in []reflect.Value) []reflect.Value {
-		ctx := in[0].Interface().(context.Context)
-		var args []any
-		if len(in) > 1 {
-			args = make([]any, len(in)-1)
-			for i, a := range in[1:] {
-				args[i] = a.Interface()
+	var fn reflect.Value
+	if makeFn != nil {
+		fn = makeFn(stmt)
+	} else {
+		fn = reflect.MakeFunc(fnType, func(in []reflect.Value) []reflect.Value {
+			ctx := in[0].Interface().(context.Context)
+			var args []any
+			if len(in) > 1 {
+				args = make([]any, len(in)-1)
+				for i, a := range in[1:] {
+					args[i] = a.Interface()
+				}
 			}
-		}
-		rows, err := stmt.QueryContext(ctx, args...)
-		return []reflect.Value{reflect.ValueOf(&rows).Elem(), reflect.ValueOf(&err).Elem()}
+			rows, err := stmt.QueryContext(ctx, args...)
+			return []reflect.Value{reflect.ValueOf(&rows).Elem(), reflect.ValueOf(&err).Elem()}
+		})
 	}
 
-	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
+	fnValue.Elem().Set(fn)
 
 	return stmt.Close, nil
 }
