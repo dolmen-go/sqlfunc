@@ -8,6 +8,8 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -164,8 +166,10 @@ func Generate(t testing.TB, patterns ...string) {
 			}
 
 			buf.WriteString("\nfunc init() {")
-			for _, f := range gen.Funcs {
-				printFuncCode(&buf, f)
+			keys := slices.Collect(maps.Keys(gen.Funcs))
+			slices.Sort(keys)
+			for _, k := range keys {
+				printFuncCode(&buf, gen.Funcs[k])
 			}
 			buf.WriteString("}\n")
 
