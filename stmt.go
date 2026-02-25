@@ -77,9 +77,8 @@ func doExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query stri
 			panic("func first arg must be a context.Context")
 		}
 		// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
-		if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
-			withTx = true
-		}
+		withTx = numIn > 1 && fnType.In(1).Implements(typeTxStmt)
+
 		if fnType.NumOut() != 2 || fnType.Out(0) != typeResult || fnType.Out(1) != typeError {
 			panic("func must return (sql.Result, error)")
 		}
@@ -152,10 +151,10 @@ func doQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query 
 		if numIn < 1 || fnType.In(0) != typeContext {
 			panic("func first arg must be a context.Context")
 		}
+
 		// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
-		if numIn > 1 && fnType.In(1).Implements(typeTxStmt) {
-			withTx = true
-		}
+		withTx = numIn > 1 && fnType.In(1).Implements(typeTxStmt)
+
 		numOut := fnType.NumOut()
 		if numOut < 2 {
 			panic("func must return at least one column")
