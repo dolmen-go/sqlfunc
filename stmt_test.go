@@ -32,18 +32,19 @@ func ExampleExec() {
 			panic(fmt.Errorf("%s: %v", msg, err))
 		}
 	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCtx()
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	check("Open", err)
-	defer db.Close()
+	defer checkDeferred("db.Close", db.Close)
 
 	// As the DB is in-memory, we need to use the same connection for all operations
 	conn, err := db.Conn(ctx)
 	check("Conn", err)
-	defer conn.Close()
+	defer checkDeferred("conn.Close", conn.Close)
 
 	// POI = Point of Interest
 	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
@@ -57,7 +58,7 @@ func ExampleExec() {
 		&newPOI,
 	)
 	check("Prepare newPOI", err)
-	defer closeStmt()
+	defer checkDeferred("closeStmt", closeStmt)
 
 	// To call the prepared statement we use the strongly typed function
 	_, err = newPOI(ctx, 48.8016, 2.1204, "Château de Versailles")
@@ -83,7 +84,7 @@ func ExampleExec() {
 		&getPOICoord,
 	)
 	check("Prepare getPOICoord", err)
-	defer closeStmt()
+	defer checkDeferred("closeStmt", closeStmt)
 
 	_, _, err = getPOICoord(ctx, "Trifoully-les-Oies")
 	if err != sql.ErrNoRows {
@@ -110,18 +111,19 @@ func ExampleExec_withTx() {
 			panic(fmt.Errorf("%s: %v", msg, err))
 		}
 	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCtx()
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	check("Open", err)
-	defer db.Close()
+	defer checkDeferred("db.Close", db.Close)
 
 	// As the DB is in-memory, we need to use the same connection for all operations
 	conn, err := db.Conn(ctx)
 	check("Conn", err)
-	defer conn.Close()
+	defer checkDeferred("conn.Close", conn.Close)
 
 	// POI = Point of Interest
 	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
@@ -134,7 +136,7 @@ func ExampleExec_withTx() {
 		&countPOI,
 	)
 	check("Prepare countPOI", err)
-	defer closeCountPOI()
+	defer checkDeferred("closeCountPOI", closeCountPOI)
 
 	var queryNames func(ctx context.Context) (*sql.Rows, error)
 	closeQueryNames, err := sqlfunc.Query(
@@ -143,7 +145,7 @@ func ExampleExec_withTx() {
 		&queryNames,
 	)
 	check("Prepare queryNames", err)
-	defer closeQueryNames()
+	defer checkDeferred("closeQueryNames", closeQueryNames)
 
 	nbPOI, err := countPOI(ctx)
 	check("countPOI", err)
@@ -157,11 +159,15 @@ func ExampleExec_withTx() {
 		&insertPOI,
 	)
 	check("Prepare insertPOI", err)
-	defer closeInsertPOI()
+	defer checkDeferred("closeInsertPOI", closeInsertPOI)
 
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	check("BeginTx", err)
-	defer tx.Rollback()
+	defer func() {
+		if tx != nil {
+			check("tx.Rollback", tx.Rollback())
+		}
+	}()
 
 	res, err := insertPOI(ctx, tx, 48.8016, 2.1204, "Château de Versailles")
 	check("newPOI", err)
@@ -190,7 +196,8 @@ func ExampleExec_withTx() {
 	check("ForEach", err)
 	fmt.Println("names:", names)
 
-	tx.Rollback()
+	check("tx.Rollback", tx.Rollback())
+	tx = nil // avoid double rollback in defer
 
 	nbPOI, err = countPOI(ctx)
 	check("countPOI after rollback", err)
@@ -212,13 +219,14 @@ func ExampleQuery() {
 			panic(fmt.Errorf("%s: %v", msg, err))
 		}
 	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCtx()
 
 	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
 	check("Open", err)
-	defer db.Close()
+	defer checkDeferred("db.Close", db.Close)
 
 	var queryNames func(ctx context.Context) (*sql.Rows, error)
 	closeQueryNames, err := sqlfunc.Query(
@@ -227,7 +235,7 @@ func ExampleQuery() {
 		&queryNames,
 	)
 	check("Prepare queryNames", err)
-	defer closeQueryNames()
+	defer checkDeferred("closeQueryNames", closeQueryNames)
 
 	rows, err := queryNames(ctx)
 	check("queryNames", err)
@@ -247,13 +255,14 @@ func ExampleQuery_withArgs() {
 			panic(fmt.Errorf("%s: %v", msg, err))
 		}
 	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCtx()
 
 	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
 	check("Open", err)
-	defer db.Close()
+	defer checkDeferred("db.Close", db.Close)
 
 	var queryByName func(ctx context.Context, name string) (*sql.Rows, error)
 	closeQueryByName, err := sqlfunc.Query(
@@ -262,7 +271,7 @@ func ExampleQuery_withArgs() {
 		&queryByName,
 	)
 	check("Prepare queryByName", err)
-	defer closeQueryByName()
+	defer checkDeferred("closeQueryByName", closeQueryByName)
 
 	rows, err := queryByName(ctx, "Château de Versailles")
 	check("queryByName", err)
@@ -281,14 +290,14 @@ func ExampleQuery_withTx() {
 			panic(fmt.Errorf("%s: %v", msg, err))
 		}
 	}
-	checkDefered := func(msg string, f func() error) { check(msg, f()) }
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCtx()
 
 	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
 	check("Open", err)
-	defer checkDefered("Close", db.Close)
+	defer checkDeferred("Close", db.Close)
 
 	var queryByNameTx func(ctx context.Context, tx *sql.Tx, name string) (*sql.Rows, error)
 	closeQueryByNameTx, err := sqlfunc.Query(
@@ -297,11 +306,11 @@ func ExampleQuery_withTx() {
 		&queryByNameTx,
 	)
 	check("Prepare queryByName", err)
-	defer checkDefered("closeQueryByNameTx", closeQueryByNameTx)
+	defer checkDeferred("closeQueryByNameTx", closeQueryByNameTx)
 
 	tx, err := db.BeginTx(ctx, nil)
 	check("BeginTx", err)
-	defer checkDefered("Rollback", tx.Rollback)
+	defer checkDeferred("Rollback", tx.Rollback)
 
 	rows, err := queryByNameTx(ctx, tx, "Château de Versailles")
 	check("queryByNameTx", err)
@@ -320,13 +329,14 @@ func ExampleQueryRow_withArgs() {
 			panic(fmt.Errorf("%s: %v", msg, err))
 		}
 	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCtx()
 
 	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
 	check("Open", err)
-	defer db.Close()
+	defer checkDeferred("db.Close", db.Close)
 
 	var queryByName func(ctx context.Context, name string) (lat, lon float64, err error)
 	closeQueryByName, err := sqlfunc.QueryRow(
@@ -335,7 +345,7 @@ func ExampleQueryRow_withArgs() {
 		&queryByName,
 	)
 	check("Prepare queryByName", err)
-	defer closeQueryByName()
+	defer checkDeferred("closeQueryByName", closeQueryByName)
 
 	lat, lon, err := queryByName(ctx, "Château de Versailles")
 	check("queryByName", err)
