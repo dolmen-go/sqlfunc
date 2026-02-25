@@ -137,20 +137,15 @@ func Generate(t testing.TB, patterns ...string) {
 						)
 						return
 					}
-					// t.Logf("%#v", typ)
+
+					var build func(*Generator, string, *types.Signature) (funcCode, error)
 					if s.Sel.Name == "Scan" {
-						if err = gen.add("Scan", sig, (*Generator).genScan); err != nil {
-							t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
-						}
-						return
-					} else if s.Sel.Name == "Exec" || s.Sel.Name == "Query" {
-						if err = gen.add(s.Sel.Name, sig, (*Generator).genStmt); err != nil {
-							t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
-						}
-						return
-					} else {
-						// TODO Exec, QueryRow, Query
-						gen.gen(t, s.Sel.Name, sig)
+						build = (*Generator).genScan
+					} else { // Exec, QueryRow, Query
+						build = (*Generator).genStmt
+					}
+					if err = gen.add(s.Sel.Name, sig, build); err != nil {
+						t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
 					}
 				}
 				return
@@ -240,10 +235,6 @@ func (g *Generator) checkTypeScope(typ types.Type) error {
 	// FIXME recurse
 
 	return nil
-}
-
-func (g *Generator) gen(tb testing.TB, f string, sig *types.Signature) {
-	tb.Log(g.Pkg.Name, f, sig)
 }
 
 func (g *Generator) add(registry string, sig *types.Signature, build func(g *Generator, registry string, sig *types.Signature) (funcCode, error)) error {
@@ -424,6 +415,7 @@ func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
 		p := results.At(i) // skip last parameter which is error
 		typ := p.Type()
 
+		// FIXME TypeScope check failures should not prevent generating code for other signatures
 		if err := g.checkTypeScope(typ); err != nil {
 			return nil, fmt.Errorf("result %d (type %q): %w", i+1, types.TypeString(typ, g.qualifier), err)
 		}
@@ -481,6 +473,11 @@ func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, er
 	results := sig.Results()
 	nResults := results.Len()
 
+	var (
+		outDecls []string
+		outNames []string
+	)
+
 	if nParams == 0 {
 		return nil, errors.New("function must receive at least one parameter")
 	}
@@ -496,7 +493,7 @@ func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, er
 		if results.At(0).Type().String() != "database/sql.Result" {
 			return nil, errors.New("function must return an sql.Result")
 		}
-		if results.At(results.Len()-1).Type().String() != "error" {
+		if results.At(1).Type().String() != "error" {
 			return nil, errors.New("function must return an error")
 		}
 	case "Query":
@@ -506,18 +503,41 @@ func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, er
 		if results.At(0).Type().String() != "*database/sql.Rows" {
 			return nil, errors.New("function must return an *sql.Rows")
 		}
-		if results.At(results.Len()-1).Type().String() != "error" {
+		if results.At(1).Type().String() != "error" {
 			return nil, errors.New("function must return an error")
 		}
 	case "QueryRow":
-		// FIXME handle return:
-		// - either sql.Row (no error)
-		// - or scanned variables, and error
+		if nResults < 2 {
+			return nil, errors.New("must return 2 results")
+		}
+		if results.At(results.Len()-1).Type().String() != "error" {
+			return nil, errors.New("function must return an error")
+		}
+		if results.At(0).Type().String() == "*database/sql.Row" {
+			if nResults != 2 {
+				return nil, errors.New("must return 2 results")
+			}
+		} else { // Result of row.Scan() is returned as values
+			for i := range nResults - 1 {
+				p := results.At(i) // skip last parameter which is error
+				typ := p.Type()
+
+				// FIXME TypeScope check failures should not prevent generating code for other signatures
+				if err := g.checkTypeScope(typ); err != nil {
+					return nil, fmt.Errorf("result %d (type %q): %w", i+1, types.TypeString(typ, g.qualifier), err)
+				}
+
+				name := "out" + strconv.Itoa(i)
+				outDecls = append(outDecls, name+" "+types.TypeString(typ, g.qualifier))
+				outNames = append(outNames, name)
+			}
+			outDecls = append(outDecls, "err error")
+		}
 	}
 
 	var (
-		vars       []string
-		args       []string
+		inDecls    []string
+		inNames    []string
 		firstParam = 1
 		txType     types.Type
 	)
@@ -549,36 +569,45 @@ func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, er
 				return nil, fmt.Errorf("parameter %d (type %q): %w", i+firstParam, types.TypeString(typ, g.qualifier), err)
 			}
 
-			name := "v" + strconv.Itoa(i)
-			vars = append(vars, name+" "+types.TypeString(typ, g.qualifier))
-			args = append(args, name)
+			name := "in" + strconv.Itoa(i)
+			inDecls = append(inDecls, name+" "+types.TypeString(typ, g.qualifier))
+			inNames = append(inNames, name)
 		}
 	}
 
 	code := funcCodeStmt{
 		StmtName:  stmtName,
 		Signature: types.TypeString(sig, g.qualifier),
-		Vars:      strings.Join(vars, ", "),
-		Args:      strings.Join(args, ", "),
-		RetType:   types.TypeString(results.At(0).Type(), g.qualifier),
 		TxType: func() string {
 			if txType == nil {
 				return ""
 			}
 			return types.TypeString(txType, g.qualifier)
 		}(),
+		InDecls: strings.Join(inDecls, ", "),
+		InNames: strings.Join(inNames, ", "),
+		OutType: func() string {
+			if len(outDecls) != 0 {
+				return ""
+			}
+			return types.TypeString(results.At(0).Type(), g.qualifier)
+		}(),
+		OutDecls:   strings.Join(outDecls, ", "),
+		OutArgsPtr: "&" + strings.Join(outNames, ", &"),
 	}
 
 	return &code, nil
 }
 
 type funcCodeStmt struct {
-	StmtName  string
-	Signature string
-	Vars      string
-	Args      string
-	RetType   string
-	TxType    string
+	StmtName   string
+	Signature  string
+	TxType     string
+	InDecls    string
+	InNames    string
+	OutType    string
+	OutDecls   string
+	OutArgsPtr string
 }
 
 func (f funcCodeStmt) Registry() string {
@@ -593,7 +622,7 @@ func (funcCodeStmt) Template() string {
 	return `
 	sqlfuncregistry.{{.StmtName}}[{{.Signature}}](
 		func(stmt *sql.Stmt) reflect.Value {
-			return reflect.ValueOf(func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .Vars}}, {{.Vars}}{{end}}) ({{.RetType}}, error) {
+			return reflect.ValueOf(func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .InDecls}}, {{.InDecls}}{{end}}) ({{ if .OutDecls }}{{.OutDecls}}{{else}}{{.OutType}}{{ if (ne .StmtName "QueryRow") }}, error{{end}}{{end}}) {
 {{- if .TxType }}
 				stmtTx := stmt
 				if tx != nil {
@@ -601,7 +630,12 @@ func (funcCodeStmt) Template() string {
 					defer stmtTx.Close()
 				}
 {{- end }}
-				return stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .Args}}, {{ .Args }}{{end}})
+{{- if .OutDecls }}
+				err = stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}}).Scan({{ .OutArgsPtr }})
+				return
+{{- else }}
+				return stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}})
+{{- end}}
 			})
 		},
 	)
