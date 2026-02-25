@@ -16,7 +16,9 @@ func init() {
 var (
 	ForEach registryOf[FuncForEach]
 	Scan    registryOf[FuncScan]
-	Stmt    registryOf[FuncStmt]
+	// Stmt is the shared registry for Exec, QueryRow, Query.
+	// This is possible because the shapes of the return types never overlap.
+	Stmt registryOf[FuncStmt]
 )
 
 type (
