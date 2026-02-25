@@ -53,17 +53,17 @@ func (AnyAPI) Scan(fnPtr any) {
 // Exec is same as [Exec].
 func (AnyAPI) Exec(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	fnValue := checkFnPtr(fnPtr)
-	return anyExec(fnValue.Type().Elem(), ctx, db, query, fnValue)
+	return doExec(fnValue.Type().Elem(), ctx, db, query, fnValue)
 }
 
 // QueryRow is same as [QueryRow].
 func (AnyAPI) QueryRow(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	fnValue := checkFnPtr(fnPtr)
-	return anyQueryRow(fnValue.Type().Elem(), ctx, db, query, fnValue)
+	return doQueryRow(fnValue.Type().Elem(), ctx, db, query, fnValue)
 }
 
 // Query is same as [Query].
 func (AnyAPI) Query(ctx context.Context, db PrepareConn, query string, fnPtr any) (close func() error, err error) {
 	fnValue := checkFnPtr(fnPtr)
-	return anyQuery(fnValue.Type().Elem(), ctx, db, query, fnValue)
+	return doQuery(fnValue.Type().Elem(), ctx, db, query, fnValue)
 }

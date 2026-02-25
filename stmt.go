@@ -61,10 +61,10 @@ func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Fu
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	return anyExec(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+	return doExec(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
 }
 
-func anyExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
+func doExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	makeFn := registryExec(fnType)
 	withTx := false
 
@@ -137,10 +137,10 @@ func QueryRow[Func any](ctx context.Context, db PrepareConn, query string, fnPtr
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	return anyQueryRow(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+	return doQueryRow(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
 }
 
-func anyQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
+func doQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	makeFn := registryQueryRow(fnType)
 	withTx := false
 
@@ -227,10 +227,10 @@ func Query[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *F
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	return anyQuery(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
+	return doQuery(reflect.TypeFor[Func](), ctx, db, query, reflect.ValueOf(fnPtr))
 }
 
-func anyQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
+func doQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
 	// FIXME add support for *sql.Tx arg
 
 	makeFn := registryQuery(fnType)
