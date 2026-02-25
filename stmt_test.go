@@ -275,6 +275,45 @@ func ExampleQuery_withArgs() {
 	// (48.8016 2.1204)
 }
 
+func ExampleQuery_withTx() {
+	check := func(msg string, err error) {
+		if err != nil {
+			panic(fmt.Errorf("%s: %v", msg, err))
+		}
+	}
+	checkDefered := func(msg string, f func() error) { check(msg, f()) }
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
+	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
+	check("Open", err)
+	defer checkDefered("Close", db.Close)
+
+	var queryByNameTx func(ctx context.Context, tx *sql.Tx, name string) (*sql.Rows, error)
+	closeQueryByNameTx, err := sqlfunc.Query(
+		ctx, db,
+		`SELECT lat, lon FROM poi WHERE name = ?`,
+		&queryByNameTx,
+	)
+	check("Prepare queryByName", err)
+	defer checkDefered("closeQueryByNameTx", closeQueryByNameTx)
+
+	tx, err := db.BeginTx(ctx, nil)
+	check("BeginTx", err)
+	defer checkDefered("Rollback", tx.Rollback)
+
+	rows, err := queryByNameTx(ctx, tx, "Château de Versailles")
+	check("queryByNameTx", err)
+	err = sqlfunc.ForEach(rows, func(lat, lon float64) {
+		fmt.Printf("(%.4f %.4f)\n", lat, lon)
+	})
+	check("ForEach", err)
+
+	// Output:
+	// (48.8016 2.1204)
+}
+
 func ExampleQueryRow_withArgs() {
 	check := func(msg string, err error) {
 		if err != nil {

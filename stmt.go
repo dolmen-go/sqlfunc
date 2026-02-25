@@ -231,17 +231,21 @@ func Query[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *F
 }
 
 func doQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query string, fnValue reflect.Value) (close func() error, err error) {
-	// FIXME add support for *sql.Tx arg
-
 	makeFn := registryQuery(fnType)
+	withTx := false
 
 	if makeFn == nil {
 		if fnType.Kind() != reflect.Func {
 			panic("fnPtr must be a pointer to a *func* variable")
 		}
-		if fnType.NumIn() < 1 || fnType.In(0) != typeContext {
+		numIn := fnType.NumIn()
+		if numIn < 1 || fnType.In(0) != typeContext {
 			panic("func first arg must be a context.Context")
 		}
+
+		// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
+		withTx = numIn > 1 && fnType.In(1).Implements(typeTxStmt)
+
 		if fnType.NumOut() != 2 || fnType.Out(0) != typeRows || fnType.Out(1) != typeError {
 			panic("func must return (*sql.Rows, error)")
 		}
@@ -256,16 +260,25 @@ func doQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query str
 	if makeFn != nil {
 		fn = makeFn(stmt)
 	} else {
+		firstArg := 1
+		if withTx {
+			firstArg = 2
+		}
 		fn = reflect.MakeFunc(fnType, func(in []reflect.Value) []reflect.Value {
 			ctx := in[0].Interface().(context.Context)
+			stmtTx := stmt
+			if withTx && !in[1].IsNil() {
+				stmtTx = in[1].Interface().(txStmt).StmtContext(ctx, stmt)
+				defer stmtTx.Close()
+			}
 			var args []any
-			if len(in) > 1 {
-				args = make([]any, len(in)-1)
-				for i, a := range in[1:] {
+			if len(in) > firstArg {
+				args = make([]any, len(in)-firstArg)
+				for i, a := range in[firstArg:] {
 					args[i] = a.Interface()
 				}
 			}
-			rows, err := stmt.QueryContext(ctx, args...)
+			rows, err := stmtTx.QueryContext(ctx, args...)
 			return []reflect.Value{reflect.ValueOf(&rows).Elem(), reflect.ValueOf(&err).Elem()}
 		})
 	}
