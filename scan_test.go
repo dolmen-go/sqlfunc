@@ -327,6 +327,42 @@ func TestScanNullT(t *testing.T) {
 	_ = scanNullInt64
 }
 
+func TestScanScanner(t *testing.T) {
+	var scanScanner func(*sql.Rows, sql.Scanner) error
+	sqlfunc.Scan(&scanScanner)
+
+	_ = testScanT[sql.Scanner]()
+
+	var scanScanner2 func(*sql.Rows, interface{ Scan(src any) error }) error
+	sqlfunc.Scan(&scanScanner2)
+
+	t.Run("TODO", func(t *testing.T) {
+		t.Skip("TODO We are not yet strictly checking for concrete type. This has a little cost we want to avoid. Instead we want to check for it in the code generator.")
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Log("panic expected. Got:", r.(string))
+				} else {
+					t.Error("return values must be concrete types, not interfaces")
+				}
+			}()
+			var scanScanner3 func(*sql.Rows) (sql.Scanner, error)
+			sqlfunc.Scan(&scanScanner3)
+		}()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Log("panic expected. Got:", r.(string))
+				} else {
+					t.Error("return values must be concrete types, not interfaces")
+				}
+			}()
+			var scanScanner4 func(*sql.Rows) (interface{ Scan(src any) error }, error)
+			sqlfunc.Scan(&scanScanner4)
+		}()
+	})
+}
+
 func testForEach_oneColumn[T any](
 	t *testing.T,
 	db interface {
