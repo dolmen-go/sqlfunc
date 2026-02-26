@@ -248,15 +248,35 @@ func (g *Generator) checkTypeScope(typ types.Type) error {
 		return g.checkTypeScope(ptr.Elem())
 	}
 
+	// Hint for discovering types into which we have to recurse:
+	//   go doc -all go/types | grep TypeArgs
+
 	if named, ok := typ.(*types.Named); ok {
 		obj := named.Obj()
 		// If the type is defined in the current package but not at the package level
 		if obj.Pkg() == g.Pkg.Types && obj.Parent() != g.Pkg.Types.Scope() {
 			return fmt.Errorf("%q is a local type", obj.Name())
 		}
+
+		// recurse into any type args
+		for t := range named.TypeArgs().Types() {
+			if err := g.checkTypeScope(t); err != nil {
+				return err
+			}
+		}
 	}
 
-	// FIXME recurse
+	if ali, ok := typ.(*types.Alias); ok {
+		for t := range ali.TypeArgs().Types() {
+			if err := g.checkTypeScope(t); err != nil {
+				return err
+			}
+		}
+		return g.checkTypeScope(types.Unalias(ali))
+	}
+
+	// For debugging:
+	//log.Printf("%T %[1]s", typ)
 
 	return nil
 }
