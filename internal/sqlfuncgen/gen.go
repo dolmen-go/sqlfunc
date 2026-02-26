@@ -409,8 +409,8 @@ func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
 	}
 
 	var (
-		vars []string
-		args []string
+		decls []string
+		args  []string
 	)
 
 	for i := range nParams - 1 {
@@ -427,7 +427,7 @@ func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
 		}
 
 		name := "v" + strconv.Itoa(i)
-		vars = append(vars, name+" "+types.TypeString(typ, g.qualifier))
+		decls = append(decls, name+" "+types.TypeString(typ, g.qualifier))
 		args = append(args, name)
 	}
 
@@ -441,13 +441,13 @@ func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
 		}
 
 		name := "v" + strconv.Itoa(i)
-		vars = append(vars, name+" "+types.TypeString(typ, g.qualifier))
+		decls = append(decls, name+" "+types.TypeString(typ, g.qualifier))
 		args = append(args, name)
 	}
 
 	code := funcCodeScan{
 		Signature: types.TypeString(sig, g.qualifier),
-		Vars:      strings.Join(vars, ", "),
+		Decls:     strings.Join(decls, ", "),
 		Args:      strings.Join(args, ", "),
 		ArgsPtr:   "&" + strings.Join(args, ", &"),
 		IsIn:      isIn,
@@ -458,7 +458,7 @@ func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
 
 type funcCodeScan struct {
 	Signature string
-	Vars      string
+	Decls     string
 	Args      string
 	ArgsPtr   string
 	IsIn      bool
@@ -475,7 +475,7 @@ func (f funcCodeScan) Key() string {
 func (funcCodeScan) Template() string {
 	return alignLineNum(`
 	sqlfuncregistry.Scan[{{.Signature}}](
-		func(rows *sql.Rows{{if .IsIn}}, {{.Vars}}{{end}}) ({{if (not .IsIn)}}{{.Vars}}, err {{end}}error) {
+		func(rows *sql.Rows{{ if .IsIn }}, {{ .Decls }}{{ end }}) {{ if .IsIn }}error{{ else }}({{ .Decls }}, err error){{ end }} {
 {{- if .IsIn}}
 			return rows.Scan({{.Args}})
 {{- else}}
