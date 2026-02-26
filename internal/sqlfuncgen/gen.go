@@ -471,14 +471,14 @@ func (f funcCodeScan) Key() string {
 func (funcCodeScan) Template() string {
 	return `
 	sqlfuncregistry.Scan[{{.Signature}}](
-		reflect.ValueOf(func(rows *sql.Rows{{if .IsIn}}, {{.Vars}}{{end}}) ({{if (not .IsIn)}}{{.Vars}}, err {{end}}error) {
+		func(rows *sql.Rows{{if .IsIn}}, {{.Vars}}{{end}}) ({{if (not .IsIn)}}{{.Vars}}, err {{end}}error) {
 {{- if .IsIn}}
 			return rows.Scan({{.Args}})
 {{- else}}
 			err = rows.Scan({{.ArgsPtr}})
 			return
 {{- end}}
-		}),
+		},
 	)
 `
 }
