@@ -25,6 +25,7 @@ import (
 	"go/types"
 	"io"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -185,7 +186,10 @@ func Generate(t testing.TB, patterns ...string) {
 			keys := slices.Collect(maps.Keys(gen.Funcs))
 			slices.Sort(keys)
 			for _, k := range keys {
-				printFuncCode(&buf, gen.Funcs[k])
+				if err := printFuncCode(&buf, gen.Funcs[k]); err != nil {
+					t.Fatalf("%s: %v", k, err)
+					return
+				}
 			}
 			buf.WriteString("}\n")
 
@@ -201,7 +205,7 @@ type funcCode interface {
 }
 
 func printFuncCode(w io.Writer, f interface{ Template() string }) error {
-	tmpl := template.New("code")
+	tmpl := template.New(reflect.TypeOf(f).Elem().Name())
 	tmpl, err := tmpl.Parse(f.Template())
 	if err != nil {
 		return fmt.Errorf("Parse template: %w", err)
