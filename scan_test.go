@@ -302,6 +302,31 @@ func ExampleScan_any() {
 	// string "a"
 }
 
+// This code exists to stress Scan code generation
+func testScanT[T any]() (f func(*sql.Rows, *T) error) {
+	sqlfunc.Scan(&f)
+
+	type Alias = T
+	var g func(*sql.Rows, *Alias) error
+	sqlfunc.Scan(&g)
+
+	return
+}
+
+// This code exists to stress Scan code generation
+func testScanNullT[T any]() (f func(*sql.Rows, *sql.Null[T]) error) {
+	sqlfunc.Scan(&f)
+	return
+}
+
+func TestScanNullT(t *testing.T) {
+	scanInt64 := testScanT[int64]()
+	_ = scanInt64
+
+	scanNullInt64 := testScanNullT[int64]()
+	_ = scanNullInt64
+}
+
 func testForEach_oneColumn[T any](
 	t *testing.T,
 	db interface {
