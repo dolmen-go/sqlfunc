@@ -498,7 +498,8 @@ func (f funcCodeScan) Key() string {
 
 func (funcCodeScan) Template() string {
 	return alignLineNum(`
-	sqlfuncregistry.Scan[{{.Signature}}](
+	// {{.Signature}}
+	sqlfuncregistry.Scan(
 		func(rows *sql.Rows{{ if .IsIn }}, {{ .Decls }}{{ end }}) {{ if .IsIn }}error{{ else }}({{ .Decls }}, err error){{ end }} {
 {{- if .IsIn}}
 			return rows.Scan({{.Args}})

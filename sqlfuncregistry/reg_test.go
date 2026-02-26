@@ -29,7 +29,7 @@ import (
 // This enforces the API contract whatever the build tags.
 var (
 	_ func(registry.FuncForEach)  = sqlfuncregistry.ForEach[func(int64) error]
-	_ func(any)                   = sqlfuncregistry.Scan[func(int64) error]
+	_ func(func(int64) error)     = sqlfuncregistry.Scan[func(int64) error]
 	_ func(registry.FuncExec)     = sqlfuncregistry.Exec[func(context.Context) (*sql.Rows, error)]
 	_ func(registry.FuncQueryRow) = sqlfuncregistry.QueryRow[func(context.Context) (int64, error)]
 	_ func(registry.FuncQuery)    = sqlfuncregistry.Query[func(context.Context) (*sql.Rows, error)]

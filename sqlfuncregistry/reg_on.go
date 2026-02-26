@@ -30,7 +30,7 @@ func ForEach[Func any](f func(*sql.Rows, any) error) {
 	registry.ForEach.Register(reflect.TypeFor[Func](), f)
 }
 
-func Scan[Func any](f any) {
+func Scan[Func any](f Func) {
 	registry.Scan.Register(reflect.TypeFor[Func](), reflect.ValueOf(f))
 }
 

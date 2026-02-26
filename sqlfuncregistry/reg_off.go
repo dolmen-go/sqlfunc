@@ -27,7 +27,7 @@ import (
 func ForEach[Func any](f func(*sql.Rows, any) error) {
 }
 
-func Scan[Func any](f reflect.Value) {
+func Scan[Func any](f Func) {
 }
 
 func Exec[Func any](f func(*sql.Stmt) reflect.Value) {
