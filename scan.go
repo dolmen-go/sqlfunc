@@ -34,10 +34,10 @@ func Scan[Func any](fnPtr *Func) {
 		panic("fnPtr must be non-nil")
 	}
 	fnType := reflect.TypeFor[Func]()
-	anyScan(fnType, reflect.ValueOf(fnPtr))
+	doScan(fnType, reflect.ValueOf(fnPtr))
 }
 
-func anyScan(fnType reflect.Type, fnValue reflect.Value) {
+func doScan(fnType reflect.Type, fnValue reflect.Value) {
 	if fn := registryScan(fnType); fn.IsValid() {
 		fnValue.Elem().Set(fn)
 		return

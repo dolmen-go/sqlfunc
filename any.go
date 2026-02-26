@@ -47,7 +47,7 @@ func checkFnPtr(fnPtr any) reflect.Value {
 // Scan is same as [Scan].
 func (AnyAPI) Scan(fnPtr any) {
 	fnValue := checkFnPtr(fnPtr)
-	anyScan(fnValue.Type().Elem(), fnValue)
+	doScan(fnValue.Type().Elem(), fnValue)
 }
 
 // Exec is same as [Exec].
