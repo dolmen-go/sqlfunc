@@ -1,3 +1,5 @@
+//go:build sqlfunc_no_registry
+
 /*
 Copyright 2026 Olivier Mengué
 
@@ -16,21 +18,19 @@ limitations under the License.
 
 package registry
 
-import (
-	"database/sql"
-	"reflect"
-)
+import "reflect"
 
-var (
-	ForEach registryOf[FuncForEach]
-	Scan    registryOf[FuncScan]
-	// Stmt is the shared registry for Exec, QueryRow, Query.
-	// This is possible because the shapes of the return types never overlap.
-	Stmt registryOf[FuncStmt]
-)
+type registryOf[T any] struct{}
 
-type (
-	FuncForEach = func(*sql.Rows, any) error
-	FuncScan    = reflect.Value
-	FuncStmt    = func(stmt *sql.Stmt) reflect.Value // Exec, QueryRow, Query
-)
+func (r *registryOf[T]) init() {
+}
+
+func (r *registryOf[T]) Disable(ig bool) {
+}
+
+func (r *registryOf[T]) Get(typ reflect.Type) (_ T) {
+	return
+}
+
+func (r *registryOf[T]) Register(typ reflect.Type, v T) {
+}

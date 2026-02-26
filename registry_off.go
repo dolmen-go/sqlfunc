@@ -1,3 +1,5 @@
+//go:build sqlfunc_no_registry
+
 /*
 Copyright 2026 Olivier Mengué
 
@@ -14,23 +16,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package registry
+package sqlfunc
 
 import (
 	"database/sql"
 	"reflect"
 )
 
-var (
-	ForEach registryOf[FuncForEach]
-	Scan    registryOf[FuncScan]
-	// Stmt is the shared registry for Exec, QueryRow, Query.
-	// This is possible because the shapes of the return types never overlap.
-	Stmt registryOf[FuncStmt]
-)
+func registryForEach(typ reflect.Type) func(*sql.Rows, any) error {
+	return nil
+}
 
-type (
-	FuncForEach = func(*sql.Rows, any) error
-	FuncScan    = reflect.Value
-	FuncStmt    = func(stmt *sql.Stmt) reflect.Value // Exec, QueryRow, Query
-)
+func registryScan(typ reflect.Type) reflect.Value {
+	return reflect.Value{}
+}
+
+func registryExec(typ reflect.Type) func(*sql.Stmt) reflect.Value {
+	return nil
+}
+
+func registryQueryRow(typ reflect.Type) func(*sql.Stmt) reflect.Value {
+	return nil
+}
+
+func registryQuery(typ reflect.Type) func(*sql.Stmt) reflect.Value {
+	return nil
+}
