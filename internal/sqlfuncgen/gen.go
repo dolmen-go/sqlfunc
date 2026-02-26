@@ -456,7 +456,7 @@ func (funcCodeScan) Template() string {
 	sqlfuncregistry.Scan[{{.Signature}}](
 		reflect.ValueOf(func(rows *sql.Rows{{if .IsIn}}, {{.Vars}}{{end}}) ({{if (not .IsIn)}}{{.Vars}}, err {{end}}error) {
 {{- if .IsIn}}
-			return rows.Scan({{.ArgsPtr}})
+			return rows.Scan({{.Args}})
 {{- else}}
 			err = rows.Scan({{.ArgsPtr}})
 			return
