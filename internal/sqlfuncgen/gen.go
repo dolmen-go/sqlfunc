@@ -350,7 +350,7 @@ func (f funcCodeForEach) Key() string {
 }
 
 func (funcCodeForEach) Template() string {
-	return `
+	return alignLineNum(`
 	sqlfuncregistry.ForEach[{{.Signature}}](func(rows *sql.Rows, cb any) (err error) {
 		cb := cb.({{.Signature}})
 		defer func() {
@@ -381,7 +381,7 @@ func (funcCodeForEach) Template() string {
 		err = rows.Err()
 		return
 	})
-`
+`)
 }
 
 func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
@@ -473,7 +473,7 @@ func (f funcCodeScan) Key() string {
 }
 
 func (funcCodeScan) Template() string {
-	return `
+	return alignLineNum(`
 	sqlfuncregistry.Scan[{{.Signature}}](
 		func(rows *sql.Rows{{if .IsIn}}, {{.Vars}}{{end}}) ({{if (not .IsIn)}}{{.Vars}}, err {{end}}error) {
 {{- if .IsIn}}
@@ -484,7 +484,7 @@ func (funcCodeScan) Template() string {
 {{- end}}
 		},
 	)
-`
+`)
 }
 
 func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, error) {
@@ -639,7 +639,7 @@ func (f funcCodeStmt) Key() string {
 }
 
 func (funcCodeStmt) Template() string {
-	return `
+	return alignLineNum(`
 	sqlfuncregistry.{{.StmtName}}[{{.Signature}}](
 		func(stmt *sql.Stmt) reflect.Value {
 			return reflect.ValueOf(func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .InDecls}}, {{.InDecls}}{{end}}) ({{ if .OutDecls }}{{.OutDecls}}{{else}}{{.OutType}}{{ if (ne .StmtName "QueryRow") }}, error{{end}}{{end}}) {
@@ -659,5 +659,5 @@ func (funcCodeStmt) Template() string {
 			})
 		},
 	)
-`
+`)
 }
