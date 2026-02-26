@@ -244,6 +244,10 @@ func (g *Generator) checkTypeScope(typ types.Type) error {
 		return fmt.Errorf("%q is a type parameter from an enclosing context", types.TypeString(typ, g.qualifier))
 	}
 
+	if ptr, ok := typ.(*types.Pointer); ok {
+		return g.checkTypeScope(ptr.Elem())
+	}
+
 	if named, ok := typ.(*types.Named); ok {
 		obj := named.Obj()
 		// If the type is defined in the current package but not at the package level
