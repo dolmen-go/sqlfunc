@@ -48,7 +48,7 @@ func TestStripNames(t *testing.T) {
 		},
 		{
 			name:     "recursive interface",
-			input:    "interface { F(i interface{ F(int) }) }",
+			input:    "interface { F(i interface{ F(x int) }) }",
 			expected: "interface{F(interface{F(int)})}",
 		},
 		{
@@ -65,6 +65,26 @@ func TestStripNames(t *testing.T) {
 			name:     "named type remains intact",
 			input:    "error",
 			expected: "error",
+		},
+		{
+			name:     "underscore",
+			input:    "func(_ int, _ int)",
+			expected: "func(int, int)",
+		},
+		{
+			name:     "multiple parameters",
+			input:    "func(a int, b int)",
+			expected: "func(int, int)",
+		},
+		{
+			name:     "return values with names",
+			input:    "func() (a int, b int)",
+			expected: "func() (int, int)",
+		},
+		{
+			name:     "deeply nested signatures",
+			input:    "func() (int, func(x int))",
+			expected: "func() (int, func(int))",
 		},
 	}
 
