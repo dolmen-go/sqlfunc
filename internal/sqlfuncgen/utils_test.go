@@ -71,7 +71,7 @@ func TestStripNames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			typ := parseType(t, tt.input)
-			stripped := StripNames(typ)
+			stripped := stripNames(typ)
 
 			// 1. Verify the string representation
 			got := types.TypeString(stripped, nil)
@@ -104,7 +104,7 @@ func TestRecursiveCycle(t *testing.T) {
 	namedT.SetUnderlying(iface)
 
 	// This should not panic or hang
-	stripped := StripNames(namedT)
+	stripped := stripNames(namedT)
 
 	if !types.Identical(namedT, stripped) {
 		t.Error("Named types should be returned exactly as-is")
@@ -180,7 +180,7 @@ var a AliasFunc
 		t.Skip("Current Go version does not support *types.Alias or it is disabled")
 	}
 
-	stripped := StripNames(aliasType)
+	stripped := stripNames(aliasType)
 
 	// Verify identity: StripNames should return the Alias itself
 	if stripped != aliasType {
@@ -188,7 +188,7 @@ var a AliasFunc
 	}
 
 	// Verify that the underlying signature, if accessed independently, can be stripped
-	underlyingStripped := StripNames(aliasType.Underlying())
+	underlyingStripped := stripNames(aliasType.Underlying())
 	expectedStr := "func(int)"
 	if got := types.TypeString(underlyingStripped, nil); got != expectedStr {
 		t.Errorf("Underlying stripped string mismatch: got %s, want %s", got, expectedStr)

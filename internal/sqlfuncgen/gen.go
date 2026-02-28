@@ -283,7 +283,7 @@ func (g *Generator) checkTypeScope(typ types.Type) error {
 
 func (g *Generator) add(registry string, sig *types.Signature, build func(g *Generator, registry string, sig *types.Signature) (funcCode, error)) error {
 	// Strip parameter names to maximize reuse of generated code
-	sig = StripNames(sig).(*types.Signature)
+	sig = stripNames(sig).(*types.Signature)
 
 	// Note: we don't use g.qualifier here to not leak imports
 	key := registry + " " + types.TypeString(sig, nil)

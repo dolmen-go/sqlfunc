@@ -34,13 +34,13 @@ func alignLineNum(template string) string {
 	return `{{/*` + strings.Repeat("\n", line-1) + ` */}}` + template
 }
 
-// StripNames exhaustively removes parameter names from UNNAMED signatures.
+// stripNames exhaustively removes parameter names from UNNAMED signatures.
 // It preserves *types.Named to maintain assignability and type identity.
-func StripNames(typ types.Type) types.Type {
-	return stripRecursive(typ, make(map[types.Type]types.Type))
+func stripNames(typ types.Type) types.Type {
+	return stripNamesRecursive(typ, make(map[types.Type]types.Type))
 }
 
-func stripRecursive(typ types.Type, seen map[types.Type]types.Type) types.Type {
+func stripNamesRecursive(typ types.Type, seen map[types.Type]types.Type) types.Type {
 	if typ == nil {
 		return nil
 	}
@@ -60,8 +60,8 @@ func stripRecursive(typ types.Type, seen map[types.Type]types.Type) types.Type {
 			t.Recv(),
 			slices.Collect(t.RecvTypeParams().TypeParams()),
 			slices.Collect(t.TypeParams().TypeParams()),
-			stripTuple(t.Params(), seen),
-			stripTuple(t.Results(), seen),
+			stripNamesTuple(t.Params(), seen),
+			stripNamesTuple(t.Results(), seen),
 			t.Variadic(),
 		)
 		return sig
@@ -74,32 +74,32 @@ func stripRecursive(typ types.Type, seen map[types.Type]types.Type) types.Type {
 		for i := range t.NumExplicitMethods() {
 			m := t.ExplicitMethod(i)
 			// Methods are Funcs; their Type() is always a Signature
-			newSig := stripRecursive(m.Type(), seen).(*types.Signature)
+			newSig := stripNamesRecursive(m.Type(), seen).(*types.Signature)
 			methods[i] = types.NewFunc(m.Pos(), m.Pkg(), m.Name(), newSig)
 		}
 
 		embeddeds := make([]types.Type, t.NumEmbeddeds())
 		for i := range t.NumEmbeddeds() {
-			embeddeds[i] = stripRecursive(t.EmbeddedType(i), seen)
+			embeddeds[i] = stripNamesRecursive(t.EmbeddedType(i), seen)
 		}
 
 		*iface = *types.NewInterfaceType(methods, embeddeds).Complete()
 		return iface
 
 	case *types.Pointer:
-		return types.NewPointer(stripRecursive(t.Elem(), seen))
+		return types.NewPointer(stripNamesRecursive(t.Elem(), seen))
 
 	case *types.Slice:
-		return types.NewSlice(stripRecursive(t.Elem(), seen))
+		return types.NewSlice(stripNamesRecursive(t.Elem(), seen))
 
 	case *types.Array:
-		return types.NewArray(stripRecursive(t.Elem(), seen), t.Len())
+		return types.NewArray(stripNamesRecursive(t.Elem(), seen), t.Len())
 
 	case *types.Map:
-		return types.NewMap(stripRecursive(t.Key(), seen), stripRecursive(t.Elem(), seen))
+		return types.NewMap(stripNamesRecursive(t.Key(), seen), stripNamesRecursive(t.Elem(), seen))
 
 	case *types.Chan:
-		return types.NewChan(t.Dir(), stripRecursive(t.Elem(), seen))
+		return types.NewChan(t.Dir(), stripNamesRecursive(t.Elem(), seen))
 
 	case *types.Struct:
 		fields := make([]*types.Var, t.NumFields())
@@ -109,7 +109,7 @@ func stripRecursive(typ types.Type, seen map[types.Type]types.Type) types.Type {
 			f := t.Field(i)
 			// We keep the field name (it's part of the struct identity),
 			// but we strip names from the type of the field.
-			fields[i] = types.NewVar(f.Pos(), f.Pkg(), f.Name(), stripRecursive(f.Type(), seen))
+			fields[i] = types.NewVar(f.Pos(), f.Pkg(), f.Name(), stripNamesRecursive(f.Type(), seen))
 			// Preserve the tag for identity/assignability
 			tags[i] = t.Tag(i)
 		}
@@ -120,7 +120,7 @@ func stripRecursive(typ types.Type, seen map[types.Type]types.Type) types.Type {
 	}
 }
 
-func stripTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tuple {
+func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tuple {
 	if tup == nil {
 		return nil
 	}
@@ -128,7 +128,7 @@ func stripTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tuple {
 	for i := range tup.Len() {
 		v := tup.At(i)
 		// Recursively strip the type, but force this specific Var's name to ""
-		vars[i] = types.NewVar(v.Pos(), v.Pkg(), "", stripRecursive(v.Type(), seen))
+		vars[i] = types.NewVar(v.Pos(), v.Pkg(), "", stripNamesRecursive(v.Type(), seen))
 	}
 	return types.NewTuple(vars...)
 }
