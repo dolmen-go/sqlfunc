@@ -127,12 +127,16 @@ func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tu
 
 	var vars []*types.Var // Lazy slice, remains nil if no changes
 
+	// From https://go.dev/ref/spec#Function_types
+	// "Within a list of parameters or results, the names (IdentifierList) must either all be present or all be absent."
+	hasNames := tup.At(0).Name() != ""
+
 	for i := range tup.Len() {
 		v := tup.At(i)
 		vt := stripNamesRecursive(v.Type(), seen)
 
 		// Check if we need to transform this Var
-		if vt != v.Type() || v.Name() != "" {
+		if hasNames || vt != v.Type() {
 			// If this is the FIRST change we've found,
 			// we must finally allocate and catch up.
 			if vars == nil {
