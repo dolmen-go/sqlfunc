@@ -133,16 +133,17 @@ func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tu
 
 	for i := range tup.Len() {
 		v := tup.At(i)
-		vt := stripNamesRecursive(v.Type(), seen)
+		typ := v.Type()
+		typStripped := stripNamesRecursive(typ, seen)
 
 		// Check if we need to transform this Var
-		if hasNames || vt != v.Type() {
+		if hasNames || typStripped != typ {
 			// If this is the FIRST change we've found,
 			// we must finally allocate and catch up.
 			if vars == nil {
 				vars = slices.Collect(tup.Variables())
 			}
-			vars[i] = types.NewVar(v.Pos(), v.Pkg(), "", vt)
+			vars[i] = types.NewVar(v.Pos(), v.Pkg(), "", typStripped)
 		}
 	}
 
