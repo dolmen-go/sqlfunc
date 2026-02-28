@@ -124,11 +124,41 @@ func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tu
 	if tup == nil {
 		return nil
 	}
-	vars := make([]*types.Var, tup.Len())
+
+	var vars []*types.Var // Lazy slice, remains nil if no changes
+
 	for i := range tup.Len() {
 		v := tup.At(i)
-		// Recursively strip the type, but force this specific Var's name to ""
-		vars[i] = types.NewVar(v.Pos(), v.Pkg(), "", stripNamesRecursive(v.Type(), seen))
+		vt := stripNamesRecursive(v.Type(), seen)
+
+		// Check if we need to transform this Var
+		if vt != v.Type() || v.Name() != "" {
+			// If this is the FIRST change we've found,
+			// we must finally allocate and catch up.
+			if vars == nil {
+				vars = make([]*types.Var, tup.Len())
+				for j := range i {
+					// Fill in previous vars that were fine as-is
+					// Note: Since they were fine, their Name is already ""
+					// and their type is vt.
+					// But we still need new Var objects because types.Tuple
+					// consumes *types.Var, and we want a clean, nameless set.
+					prevV := tup.At(j)
+					vars[j] = types.NewVar(prevV.Pos(), prevV.Pkg(), "", prevV.Type())
+				}
+			}
+		}
+
+		// If we are in "changed mode", populate the slice
+		if vars != nil {
+			vars[i] = types.NewVar(v.Pos(), v.Pkg(), "", vt)
+		}
 	}
+
+	// If vars is still nil, it means the loop finished without finding a single change.
+	if vars == nil {
+		return tup
+	}
+
 	return types.NewTuple(vars...)
 }

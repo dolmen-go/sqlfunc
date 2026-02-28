@@ -77,6 +77,13 @@ func TestStripNames(t *testing.T) {
 			got := types.TypeString(stripped, nil)
 			if got != tt.expected {
 				t.Errorf("\ngot:      %q\nexpected: %q", got, tt.expected)
+				if stripped == typ && tt.expected != tt.input {
+					t.Errorf("expected new pointer, but got original (logic failed to create new)")
+				}
+			} else {
+				if tt.expected == tt.input && stripped != typ {
+					t.Errorf("expected original pointer (CoW), but got a new one")
+				}
 			}
 
 			// 2. Verify Assignability
@@ -193,4 +200,35 @@ var a AliasFunc
 	if got := types.TypeString(underlyingStripped, nil); got != expectedStr {
 		t.Errorf("Underlying stripped string mismatch: got %s, want %s", got, expectedStr)
 	}
+}
+
+func BenchmarkStripNames(b *testing.B) {
+	// Setup a complex "dirty" type: func(x int, y string, f func(z bool))
+	dirty := types.NewSignatureType(nil, nil, nil,
+		types.NewTuple(
+			types.NewVar(0, nil, "x", types.Typ[types.Int]),
+			types.NewVar(0, nil, "y", types.Typ[types.String]),
+			types.NewVar(0, nil, "f", types.NewSignatureType(nil, nil, nil,
+				types.NewTuple(types.NewVar(0, nil, "z", types.Typ[types.Bool])),
+				nil, false),
+			),
+		),
+		nil, false)
+
+	// Setup an "already clean" version of the same type
+	clean := stripNames(dirty)
+
+	b.Run("Dirty", func(b *testing.B) {
+		b.ReportAllocs()
+		for range b.N {
+			_ = stripNames(dirty)
+		}
+	})
+
+	b.Run("Clean_CoW", func(b *testing.B) {
+		b.ReportAllocs()
+		for range b.N {
+			_ = stripNames(clean)
+		}
+	})
 }
