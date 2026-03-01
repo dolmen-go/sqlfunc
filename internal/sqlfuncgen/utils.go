@@ -202,13 +202,11 @@ func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 			for i := range numFields {
 				f := t.Field(i)
 				newT := stripNamesRecursive(f.Type(), seen)
-				if newT != f.Type() && fields == nil {
-					fields = slices.Collect(t.Fields())
-				}
-				if fields != nil {
-					// We keep the field name (it's part of the struct identity),
-					// but we strip names from the type of the field.
-					fields[i] = types.NewVar(f.Pos(), f.Pkg(), f.Name(), newT)
+				if newT != f.Type() {
+					if fields == nil {
+						fields = slices.Collect(t.Fields())
+					}
+					fields[i] = types.NewField(f.Pos(), f.Pkg(), f.Name(), newT, f.Embedded())
 				}
 			}
 			if fields == nil {
@@ -250,7 +248,8 @@ func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tu
 			if vars == nil {
 				vars = slices.Collect(tup.Variables())
 			}
-			vars[i] = types.NewVar(v.Pos(), v.Pkg(), "", typStripped)
+			vars[i] = types.NewParam(v.Pos(), v.Pkg(), "", typStripped)
+			// vars[i].SetKind(v.Kind()) // FIXME go 1.25
 		}
 	}
 
