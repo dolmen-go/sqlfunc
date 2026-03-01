@@ -131,18 +131,38 @@ func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 
 	case *types.Interface:
 		return stripNamesAny(seen, t, func(t *types.Interface) *types.Interface {
-			methods := make([]*types.Func, t.NumExplicitMethods())
+			var methods []*types.Func
 			for i := range t.NumExplicitMethods() {
 				m := t.ExplicitMethod(i)
-				// Methods are Funcs; their Type() is always a Signature
-				newSig := stripNamesRecursive(m.Type(), seen).(*types.Signature)
-				methods[i] = types.NewFunc(m.Pos(), m.Pkg(), m.Name(), newSig)
+				sig := m.Type()
+				newSig := stripNamesRecursive(sig, seen).(*types.Signature)
+				if newSig != sig {
+					if methods == nil {
+						methods = slices.Collect(t.ExplicitMethods())
+					}
+					methods[i] = types.NewFunc(m.Pos(), m.Pkg(), m.Name(), newSig)
+				}
 			}
 
 			// embeddeds := seen.stripNamesSliceTypes(t.NumEmbeddeds(), t.EmbeddedTypes)
-			embeddeds := make([]types.Type, t.NumEmbeddeds())
+			var embeddeds []types.Type
 			for i := range t.NumEmbeddeds() {
-				embeddeds[i] = stripNamesRecursive(t.EmbeddedType(i), seen)
+				em := t.EmbeddedType(i)
+				stripped := stripNamesRecursive(em, seen)
+				if stripped != em {
+					if embeddeds == nil {
+						embeddeds = slices.Collect(t.EmbeddedTypes())
+					}
+					embeddeds[i] = stripped
+				}
+			}
+
+			if methods == nil && embeddeds == nil {
+				return t
+			}
+
+			if methods == nil {
+				methods = slices.Collect(t.ExplicitMethods())
 			}
 
 			return types.NewInterfaceType(methods, embeddeds).Complete()
