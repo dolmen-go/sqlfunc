@@ -67,6 +67,31 @@ func TestStripNames(t *testing.T) {
 			expected: "error",
 		},
 		{
+			name:     "aliased type remains intact",
+			input:    "any",
+			expected: "any",
+		},
+		{
+			name:     "basic type remains intact",
+			input:    "int",
+			expected: "int",
+		},
+		{
+			name:     "pointer to basic type remains intact",
+			input:    "*int",
+			expected: "*int",
+		},
+		{
+			name:     "pointer to Alias type remains intact",
+			input:    "*any",
+			expected: "*any",
+		},
+		{
+			name:     "pointer to Named type remains intact",
+			input:    "*error",
+			expected: "*error",
+		},
+		{
 			name:     "underscore",
 			input:    "func(_ int, _ int)",
 			expected: "func(int, int)",
@@ -92,25 +117,36 @@ func TestStripNames(t *testing.T) {
 			expected: "func(error, error) (error, error)",
 		},
 		{
-			name:     "(_ chan func(x int), _ chan<- func(y int), _ <-chan func(z int))",
+			name:     "channels",
 			input:    "func(_ chan func(x int), _ chan<- func(y int), _ <-chan func(z int))",
 			expected: "func(chan func(int), chan<- func(int), <-chan func(int))",
 		},
 		{
 			name:     "array, slice",
-			input:    "func(_ [0]func(x int), _ []func(y string))",
-			expected: "func([0]func(int), []func(string))",
+			input:    "func(_ [0]func(x int), _ [42]func(y int), _ []func(z string))",
+			expected: "func([0]func(int), [42]func(int), []func(string))",
 		},
 		{
 			name:     "map",
-			input:    "func(_ map[int]func(x int), _ map[*func(y string)]int)",
-			expected: "func(map[int]func(int), map[*func(string)]int)",
+			input:    "func(_ map[int]int, _ map[int]func(x int), _ map[*func(y string)]int)",
+			expected: "func(map[int]int, map[int]func(int), map[*func(string)]int)",
+		},
+		{
+			name:     "struct",
+			input:    "func(_ struct{}, _ func(x struct{}), _ func(x struct{X int}), _ func(x struct{int}), _ func(struct{F func(y int); G struct{G func(z string)}}))",
+			expected: "func(struct{}, func(struct{}), func(struct{X int}), func(struct{int}), func(struct{F func(int); G struct{G func(string)}}))",
+		},
+		{
+			name:     "interface",
+			input:    "struct{a interface{ F(x int) (_ int, err error)}; b interface{ G(y bool); interface {F(x int)}}}",
+			expected: "struct{a interface{F(int) (int, error)}; b interface{G(bool); interface{F(int)}}}",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			typ := parseType(t, tt.input)
+			t.Logf("%T", typ)
 			stripped := stripNames(typ)
 
 			// 1. Verify the string representation
@@ -131,6 +167,17 @@ func TestStripNames(t *testing.T) {
 			if !types.AssignableTo(typ, stripped) {
 				t.Errorf("Assignability check failed: %s is not assignable to %s", typ, stripped)
 			}
+
+			// Applying stripNames twice should do nothing: the stringified result should be the same.
+			stripped2 := stripNames(stripped)
+			got2 := types.TypeString(stripped2, nil)
+			if got2 != tt.expected {
+				t.Error("stripNames(clean) should return clean.")
+				t.Errorf("\ngot:      %q\nexpected: %q", got2, tt.expected)
+			} else if stripped2 != stripped {
+				t.Log("TODO expected original pointer (CoW), but got a new one")
+			}
+
 		})
 	}
 }

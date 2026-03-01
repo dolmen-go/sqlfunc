@@ -67,17 +67,29 @@ func stripNamesAny[TPtr interface {
 }, T any](seen stripNamesCache, typ TPtr, stripNames func(typ TPtr) TPtr) types.Type {
 	newT := TPtr(new(T))
 	seen[typ] = newT
-	*newT = *stripNames(typ)
+	stripped := stripNames(typ)
+	if stripped == typ { // If strip returned identity, newT hasn't been used so we can just drop it.
+		seen[typ] = typ
+		return typ
+	}
+	*newT = *stripped
 	return newT
 }
 
+// stripNamesElem strips names in the element type of Pointer, Slice, Array, Chan.
+// Identity is returned if the element type is already clean.
 func stripNamesElem[TPtr interface {
 	*T
 	types.Type
 	Elem() types.Type
 }, T any](seen stripNamesCache, typ TPtr, build func(elemType types.Type) TPtr) types.Type {
 	return stripNamesAny(seen, typ, func(typ TPtr) TPtr {
-		return build(stripNamesRecursive(typ.Elem(), seen))
+		elem := typ.Elem()
+		elemNew := stripNamesRecursive(elem, seen)
+		if elemNew == elem {
+			return typ
+		}
+		return build(elemNew)
 	})
 }
 
