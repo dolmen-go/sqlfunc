@@ -37,83 +37,158 @@ func alignLineNum(template string) string {
 // stripNames exhaustively removes parameter names from UNNAMED signatures.
 // It preserves *types.Named to maintain assignability and type identity.
 func stripNames(typ types.Type) types.Type {
-	return stripNamesRecursive(typ, make(map[types.Type]types.Type))
+	return stripNamesRecursive(typ, stripNamesCache{})
 }
 
-func stripNamesRecursive(typ types.Type, seen map[types.Type]types.Type) types.Type {
+type stripNamesCache map[types.Type]types.Type
+
+/*
+func (seen stripNamesCache) stripNamesSeqTypes(seq iter.Seq[types.Type]) iter.Seq[types.Type] {
+	return func(yield func(types.Type) bool) {
+		for typ := range seq {
+			yield(stripNamesRecursive(typ, seen))
+		}
+	}
+}
+
+func (seen stripNamesCache) stripNamesSliceTypes(n int, seqFunc func() iter.Seq[types.Type]) []types.Type {
+	if n == 0 {
+		return nil
+	}
+	return slices.AppendSeq(make([]types.Type, 0, n), seen.stripNamesSeqTypes(seqFunc()))
+}
+*/
+
+// stripNamesAny saves a reference to a future copy of typ in the cache, then does the copy,
+// allowing to resolve self-references.
+func stripNamesAny[TPtr interface {
+	*T
+	types.Type
+}, T any](seen stripNamesCache, typ TPtr, stripNames func(typ TPtr) TPtr) types.Type {
+	newT := TPtr(new(T))
+	seen[typ] = newT
+	*newT = *stripNames(typ)
+	return newT
+}
+
+func stripNamesElem[TPtr interface {
+	*T
+	types.Type
+	Elem() types.Type
+}, T any](seen stripNamesCache, typ TPtr, build func(elemType types.Type) TPtr) types.Type {
+	return stripNamesAny(seen, typ, func(typ TPtr) TPtr {
+		return build(stripNamesRecursive(typ.Elem(), seen))
+	})
+}
+
+func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 	if typ == nil {
 		return nil
 	}
 
-	// 1. Memoization to handle recursive structures
+	// Memoization to handle recursive structures
+	//
+	// Note that Go types can only be self-referencing via Named or Alias,
+	// but we don't need to explore them for our purpose.
 	if cached, ok := seen[typ]; ok {
 		return cached
 	}
 
 	switch t := typ.(type) {
-	case *types.Signature:
-		sig := &types.Signature{}
-		seen[typ] = sig
 
-		// Create the new signature
-		*sig = *types.NewSignatureType(
-			t.Recv(),
-			slices.Collect(t.RecvTypeParams().TypeParams()),
-			slices.Collect(t.TypeParams().TypeParams()),
-			stripNamesTuple(t.Params(), seen),
-			stripNamesTuple(t.Results(), seen),
-			t.Variadic(),
-		)
-		return sig
+	// FIXME for *type.Alias, and the alias scope is not at package scope, we should unalias it
+
+	case *types.Signature:
+		return stripNamesAny(seen, t, func(t *types.Signature) *types.Signature {
+			params := stripNamesTuple(t.Params(), seen)
+			results := stripNamesTuple(t.Results(), seen)
+
+			if params == t.Params() && results == t.Results() {
+				return t
+			}
+
+			return types.NewSignatureType(
+				t.Recv(),
+				slices.Collect(t.RecvTypeParams().TypeParams()),
+				slices.Collect(t.TypeParams().TypeParams()),
+				params,
+				results,
+				t.Variadic(),
+			)
+		})
 
 	case *types.Interface:
-		iface := &types.Interface{}
-		seen[typ] = iface
+		return stripNamesAny(seen, t, func(t *types.Interface) *types.Interface {
+			methods := make([]*types.Func, t.NumExplicitMethods())
+			for i := range t.NumExplicitMethods() {
+				m := t.ExplicitMethod(i)
+				// Methods are Funcs; their Type() is always a Signature
+				newSig := stripNamesRecursive(m.Type(), seen).(*types.Signature)
+				methods[i] = types.NewFunc(m.Pos(), m.Pkg(), m.Name(), newSig)
+			}
 
-		methods := make([]*types.Func, t.NumExplicitMethods())
-		for i := range t.NumExplicitMethods() {
-			m := t.ExplicitMethod(i)
-			// Methods are Funcs; their Type() is always a Signature
-			newSig := stripNamesRecursive(m.Type(), seen).(*types.Signature)
-			methods[i] = types.NewFunc(m.Pos(), m.Pkg(), m.Name(), newSig)
-		}
+			// embeddeds := seen.stripNamesSliceTypes(t.NumEmbeddeds(), t.EmbeddedTypes)
+			embeddeds := make([]types.Type, t.NumEmbeddeds())
+			for i := range t.NumEmbeddeds() {
+				embeddeds[i] = stripNamesRecursive(t.EmbeddedType(i), seen)
+			}
 
-		embeddeds := make([]types.Type, t.NumEmbeddeds())
-		for i := range t.NumEmbeddeds() {
-			embeddeds[i] = stripNamesRecursive(t.EmbeddedType(i), seen)
-		}
-
-		*iface = *types.NewInterfaceType(methods, embeddeds).Complete()
-		return iface
+			return types.NewInterfaceType(methods, embeddeds).Complete()
+		})
 
 	case *types.Pointer:
-		return types.NewPointer(stripNamesRecursive(t.Elem(), seen))
-
+		return stripNamesElem(seen, t, types.NewPointer)
 	case *types.Slice:
-		return types.NewSlice(stripNamesRecursive(t.Elem(), seen))
-
+		return stripNamesElem(seen, t, types.NewSlice)
 	case *types.Array:
-		return types.NewArray(stripNamesRecursive(t.Elem(), seen), t.Len())
-
-	case *types.Map:
-		return types.NewMap(stripNamesRecursive(t.Key(), seen), stripNamesRecursive(t.Elem(), seen))
-
+		return stripNamesElem(seen, t, func(elem types.Type) *types.Array {
+			return types.NewArray(elem, t.Len())
+		})
 	case *types.Chan:
-		return types.NewChan(t.Dir(), stripNamesRecursive(t.Elem(), seen))
+		return stripNamesElem(seen, t, func(elem types.Type) *types.Chan {
+			return types.NewChan(t.Dir(), elem)
+		})
+	case *types.Map:
+		return stripNamesAny(seen, t, func(t *types.Map) *types.Map {
+			key := stripNamesRecursive(t.Key(), seen)
+			elem := stripNamesRecursive(t.Elem(), seen)
+			if key == t.Key() && elem == t.Elem() {
+				return t
+			}
+			return types.NewMap(key, elem)
+		})
 
 	case *types.Struct:
-		fields := make([]*types.Var, t.NumFields())
-		tags := make([]string, t.NumFields())
+		return stripNamesAny(seen, t, func(t *types.Struct) *types.Struct {
+			numFields := t.NumFields()
+			if numFields == 0 {
+				return t
+			}
 
-		for i := range t.NumFields() {
-			f := t.Field(i)
-			// We keep the field name (it's part of the struct identity),
-			// but we strip names from the type of the field.
-			fields[i] = types.NewVar(f.Pos(), f.Pkg(), f.Name(), stripNamesRecursive(f.Type(), seen))
-			// Preserve the tag for identity/assignability
-			tags[i] = t.Tag(i)
-		}
-		return types.NewStruct(fields, tags)
+			var fields []*types.Var
+
+			for i := range numFields {
+				f := t.Field(i)
+				newT := stripNamesRecursive(f.Type(), seen)
+				if newT != f.Type() && fields == nil {
+					fields = slices.Collect(t.Fields())
+				}
+				if fields != nil {
+					// We keep the field name (it's part of the struct identity),
+					// but we strip names from the type of the field.
+					fields[i] = types.NewVar(f.Pos(), f.Pkg(), f.Name(), newT)
+				}
+			}
+			if fields == nil {
+				return t
+			}
+
+			tags := make([]string, t.NumFields())
+			for i := range numFields {
+				tags[i] = t.Tag(i)
+			}
+			return types.NewStruct(fields, tags)
+		})
 
 	default: // *types.Named, *types.Alias, *types.Basic
 		return t

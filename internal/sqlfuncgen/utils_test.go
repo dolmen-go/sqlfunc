@@ -86,6 +86,11 @@ func TestStripNames(t *testing.T) {
 			input:    "func() (int, func(x int))",
 			expected: "func() (int, func(int))",
 		},
+		{
+			name:     "(error, error) (error, error)",
+			input:    "func(_ error, _ error) (_ error, _ error)",
+			expected: "func(error, error) (error, error)",
+		},
 	}
 
 	for _, tt := range tests {
