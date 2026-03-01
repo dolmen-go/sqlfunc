@@ -91,6 +91,21 @@ func TestStripNames(t *testing.T) {
 			input:    "func(_ error, _ error) (_ error, _ error)",
 			expected: "func(error, error) (error, error)",
 		},
+		{
+			name:     "(_ chan func(x int), _ chan<- func(y int), _ <-chan func(z int))",
+			input:    "func(_ chan func(x int), _ chan<- func(y int), _ <-chan func(z int))",
+			expected: "func(chan func(int), chan<- func(int), <-chan func(int))",
+		},
+		{
+			name:     "array, slice",
+			input:    "func(_ [0]func(x int), _ []func(y string))",
+			expected: "func([0]func(int), []func(string))",
+		},
+		{
+			name:     "map",
+			input:    "func(_ map[int]func(x int), _ map[*func(y string)]int)",
+			expected: "func(map[int]func(int), map[*func(string)]int)",
+		},
 	}
 
 	for _, tt := range tests {
