@@ -64,13 +64,13 @@ func (seen stripNamesCache) stripNamesSliceTypes(n int, seqFunc func() iter.Seq[
 func stripNamesAny[TPtr interface {
 	*T
 	types.Type
-}, T any](seen stripNamesCache, typ TPtr, stripNames func(typ TPtr) TPtr) types.Type {
+}, T any](seen stripNamesCache, typ TPtr, stripNames func(typ TPtr) TPtr) TPtr {
 	// Memoization to handle recursive structures
 	//
 	// Note that Go types can only be self-referencing via Named or Alias,
 	// but we don't need to explore them for our purpose.
 	if cached, ok := seen[typ]; ok {
-		return cached
+		return cached.(TPtr)
 	}
 
 	newT := TPtr(new(T))
@@ -90,7 +90,7 @@ func stripNamesElem[TPtr interface {
 	*T
 	types.Type
 	Elem() types.Type
-}, T any](seen stripNamesCache, typ TPtr, build func(elemType types.Type) TPtr) types.Type {
+}, T any](seen stripNamesCache, typ TPtr, build func(elemType types.Type) TPtr) TPtr {
 	return stripNamesAny(seen, typ, func(typ TPtr) TPtr {
 		elem := typ.Elem()
 		elemNew := stripNamesDispatch(elem, seen)
