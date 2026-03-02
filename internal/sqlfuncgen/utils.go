@@ -37,7 +37,7 @@ func alignLineNum(template string) string {
 // stripNames exhaustively removes parameter names from UNNAMED signatures.
 // It preserves *types.Named to maintain assignability and type identity.
 func stripNames(typ types.Type) types.Type {
-	return stripNamesRecursive(typ, stripNamesCache{})
+	return stripNamesDispatch(typ, stripNamesCache{})
 }
 
 type stripNamesCache map[types.Type]types.Type
@@ -65,6 +65,14 @@ func stripNamesAny[TPtr interface {
 	*T
 	types.Type
 }, T any](seen stripNamesCache, typ TPtr, stripNames func(typ TPtr) TPtr) types.Type {
+	// Memoization to handle recursive structures
+	//
+	// Note that Go types can only be self-referencing via Named or Alias,
+	// but we don't need to explore them for our purpose.
+	if cached, ok := seen[typ]; ok {
+		return cached
+	}
+
 	newT := TPtr(new(T))
 	seen[typ] = newT
 	stripped := stripNames(typ)
@@ -85,7 +93,7 @@ func stripNamesElem[TPtr interface {
 }, T any](seen stripNamesCache, typ TPtr, build func(elemType types.Type) TPtr) types.Type {
 	return stripNamesAny(seen, typ, func(typ TPtr) TPtr {
 		elem := typ.Elem()
-		elemNew := stripNamesRecursive(elem, seen)
+		elemNew := stripNamesDispatch(elem, seen)
 		if elemNew == elem {
 			return typ
 		}
@@ -93,19 +101,7 @@ func stripNamesElem[TPtr interface {
 	})
 }
 
-func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
-	if typ == nil {
-		return nil
-	}
-
-	// Memoization to handle recursive structures
-	//
-	// Note that Go types can only be self-referencing via Named or Alias,
-	// but we don't need to explore them for our purpose.
-	if cached, ok := seen[typ]; ok {
-		return cached
-	}
-
+func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
 	switch t := typ.(type) {
 
 	// FIXME for *type.Alias, and the alias scope is not at package scope, we should unalias it
@@ -135,7 +131,7 @@ func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 			for i := range t.NumExplicitMethods() {
 				m := t.ExplicitMethod(i)
 				sig := m.Type()
-				newSig := stripNamesRecursive(sig, seen).(*types.Signature)
+				newSig := stripNamesDispatch(sig, seen).(*types.Signature)
 				if newSig != sig {
 					if methods == nil {
 						methods = slices.Collect(t.ExplicitMethods())
@@ -148,7 +144,7 @@ func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 			var embeddeds []types.Type
 			for i := range t.NumEmbeddeds() {
 				em := t.EmbeddedType(i)
-				stripped := stripNamesRecursive(em, seen)
+				stripped := stripNamesDispatch(em, seen)
 				if stripped != em {
 					if embeddeds == nil {
 						embeddeds = slices.Collect(t.EmbeddedTypes())
@@ -182,8 +178,8 @@ func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 		})
 	case *types.Map:
 		return stripNamesAny(seen, t, func(t *types.Map) *types.Map {
-			key := stripNamesRecursive(t.Key(), seen)
-			elem := stripNamesRecursive(t.Elem(), seen)
+			key := stripNamesDispatch(t.Key(), seen)
+			elem := stripNamesDispatch(t.Elem(), seen)
 			if key == t.Key() && elem == t.Elem() {
 				return t
 			}
@@ -201,7 +197,7 @@ func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 
 			for i := range numFields {
 				f := t.Field(i)
-				newT := stripNamesRecursive(f.Type(), seen)
+				newT := stripNamesDispatch(f.Type(), seen)
 				if newT != f.Type() {
 					if fields == nil {
 						fields = slices.Collect(t.Fields())
@@ -220,7 +216,7 @@ func stripNamesRecursive(typ types.Type, seen stripNamesCache) types.Type {
 			return types.NewStruct(fields, tags)
 		})
 
-	default: // *types.Named, *types.Alias, *types.Basic
+	default: // nil, *types.Named, *types.Alias, *types.Basic
 		return t
 	}
 }
@@ -239,7 +235,7 @@ func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tu
 	for i := range tup.Len() {
 		v := tup.At(i)
 		typ := v.Type()
-		typStripped := stripNamesRecursive(typ, seen)
+		typStripped := stripNamesDispatch(typ, seen)
 
 		// Check if we need to transform this Var
 		if hasNames || typStripped != typ {
