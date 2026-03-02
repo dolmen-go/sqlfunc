@@ -15,9 +15,10 @@ Check [code coverage by the testsuite](https://app.codecov.io/gh/dolmen-go/sqlfu
 
 * There is a speed/memory penalty in using the `sqlfunc` wrappers
   (check `go test -bench B -benchmem github.com/dolmen-go/sqlfunc`).
-  It is recommended to do your own benchmarks. There are plans to fix
-  that (add a code generator to reduce cost of runtime `reflect`),
-  but no release date planned for this complex feature.
+  It is recommended to do your own benchmarks. However there is **work in
+  progress** to add a code generator to reduce cost of runtime `reflect`.
+  Check the [`experiment-gen`](https://github.com/dolmen-go/sqlfunc/commits/experiment-gen/)
+  branch.
 
 ## License
 
