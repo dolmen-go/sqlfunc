@@ -23,7 +23,7 @@ import (
 	"reflect"
 )
 
-func registryForEach(typ reflect.Type) func(*sql.Rows, any) error {
+func registryForEach(typ reflect.Type) any {
 	return nil
 }
 

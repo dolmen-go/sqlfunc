@@ -28,7 +28,8 @@ import (
 // Compilte-time check that the registry functions have the expected signature.
 // This enforces the API contract whatever the build tags.
 var (
-	_ func(registry.FuncForEach)  = sqlfuncregistry.ForEach[func(int64) error]
+	_ func(func(*sql.Rows, func(int64) error) error) = sqlfuncregistry.ForEach[func(int64) error]
+
 	_ func(func(int64) error)     = sqlfuncregistry.Scan[func(int64) error]
 	_ func(registry.FuncExec)     = sqlfuncregistry.Exec[func(context.Context) (*sql.Rows, error)]
 	_ func(registry.FuncQueryRow) = sqlfuncregistry.QueryRow[func(context.Context) (int64, error)]

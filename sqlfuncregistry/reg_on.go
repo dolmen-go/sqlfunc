@@ -26,8 +26,12 @@ import (
 	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
-func ForEach[Func any](f func(*sql.Rows, any) error) {
-	registry.ForEach.Register(reflect.TypeFor[Func](), f)
+func ForEach[Func any, Scan func(*sql.Rows, Func) error](scan Scan) {
+	registry.ForEach.Register(reflect.TypeFor[Func](), func(cb Func) func(*sql.Rows) error {
+		return func(rows *sql.Rows) error {
+			return scan(rows, cb)
+		}
+	})
 }
 
 func Scan[Func any](f Func) {

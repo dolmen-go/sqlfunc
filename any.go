@@ -18,6 +18,7 @@ package sqlfunc
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
 )
 
@@ -42,6 +43,21 @@ func checkFnPtr(fnPtr any) reflect.Value {
 		panic("fnPtr must be non-nil")
 	}
 	return fnValue
+}
+
+// ForEach is same as [ForEach].
+func (AnyAPI) ForEach(rows *sql.Rows, callback any) error {
+	fnValue := reflect.ValueOf(callback)
+	f := registryForEach(fnValue.Type())
+	switch f := f.(type) {
+	case func(reflect.Value) func(rows *sql.Rows) error:
+		return runForEach(rows, f(fnValue))
+	case nil:
+		return dynamicForEach(rows, fnValue.Type(), reflect.ValueOf(callback), true)
+	default:
+		// Don't override an existing optimized callback with the reflect-based one: register=false
+		return dynamicForEach(rows, fnValue.Type(), reflect.ValueOf(callback), false)
+	}
 }
 
 // Scan is same as [Scan].

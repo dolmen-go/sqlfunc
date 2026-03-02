@@ -351,7 +351,7 @@ func (g *Generator) genForEach(_ string, sig *types.Signature) (funcCode, error)
 		Signature: types.TypeString(sig, g.qualifier),
 		WithError: withError,
 		WithBool:  withBool,
-		Vars:      strings.Join(vars, "\n\t\t\t\t"),
+		Vars:      strings.Join(vars, "\n\t\t\t"),
 		Args:      strings.Join(args, ", "),
 		ArgsPtr:   "&" + strings.Join(args, ", &"),
 	}
@@ -378,35 +378,24 @@ func (f funcCodeForEach) Key() string {
 
 func (funcCodeForEach) Template() string {
 	return alignLineNum(`
-	sqlfuncregistry.ForEach[{{.Signature}}](func(rows *sql.Rows, cb any) (err error) {
-		cb := cb.({{.Signature}})
-		defer func() {
-			err2 := rows.Close()
-			if err == nil {
-				err = err2
-			}
-		}()
-		for rows.Next() {
-			var (
-				{{.Vars}}
-			)
-			if err = rows.Scan({{.ArgsPtr}}); err != nil {
-				return
-			}
-{{- if .WithError}}
-			if err = cb({{.Args}}); err != nil {
-				return
-			}
-{{- else if .WithBool}}
-			if !cb({{.Args}}) {
-				return
-			}
-{{- else}}
-			cb({{.Args}})
-{{- end}}
+	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb {{.Signature}}) error {
+		var (
+			{{.Vars}}
+		)
+		if err := rows.Scan({{.ArgsPtr}}); err != nil {
+			return err
 		}
-		err = rows.Err()
-		return
+{{- if .WithError}}
+		return cb({{.Args}})
+{{- else if .WithBool}}
+		if !cb({{.Args}}) {
+			return sqlfunc.Break
+		}
+		return nil
+{{- else}}
+		cb({{.Args}})
+		return nil
+{{- end}}
 	})
 `)
 }
