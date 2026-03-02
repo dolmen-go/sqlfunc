@@ -37,7 +37,7 @@ func alignLineNum(template string) string {
 // stripNames exhaustively removes parameter names from UNNAMED signatures.
 // It preserves *types.Named to maintain assignability and type identity.
 func stripNames(typ types.Type) types.Type {
-	return stripNamesDispatch(typ, stripNamesCache{})
+	return stripNamesDispatch(stripNamesCache{}, typ)
 }
 
 type stripNamesCache map[types.Type]types.Type
@@ -64,7 +64,7 @@ func (seen stripNamesCache) stripNamesSliceTypes(n int, seqFunc func() iter.Seq[
 func stripNamesAny[TPtr interface {
 	*T
 	types.Type
-}, T any](seen stripNamesCache, typ TPtr, stripNames func(typ TPtr) TPtr) TPtr {
+}, T any](seen stripNamesCache, typ TPtr, stripNames func() TPtr) TPtr {
 	// Memoization to handle recursive structures
 	//
 	// Note that Go types can only be self-referencing via Named or Alias,
@@ -75,7 +75,7 @@ func stripNamesAny[TPtr interface {
 
 	newT := TPtr(new(T))
 	seen[typ] = newT
-	stripped := stripNames(typ)
+	stripped := stripNames()
 	if stripped == typ { // If strip returned identity, newT hasn't been used so we can just drop it.
 		seen[typ] = typ
 		return typ
@@ -91,9 +91,9 @@ func stripNamesElem[TPtr interface {
 	types.Type
 	Elem() types.Type
 }, T any](seen stripNamesCache, typ TPtr, build func(elemType types.Type) TPtr) TPtr {
-	return stripNamesAny(seen, typ, func(typ TPtr) TPtr {
+	return stripNamesAny(seen, typ, func() TPtr {
 		elem := typ.Elem()
-		elemNew := stripNamesDispatch(elem, seen)
+		elemNew := stripNamesDispatch(seen, elem)
 		if elemNew == elem {
 			return typ
 		}
@@ -101,15 +101,15 @@ func stripNamesElem[TPtr interface {
 	})
 }
 
-func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
+func stripNamesDispatch(seen stripNamesCache, typ types.Type) types.Type {
 	switch t := typ.(type) {
 
 	// FIXME for *type.Alias, and the alias scope is not at package scope, we should unalias it
 
 	case *types.Signature:
-		return stripNamesAny(seen, t, func(t *types.Signature) *types.Signature {
-			params := stripNamesTuple(t.Params(), seen)
-			results := stripNamesTuple(t.Results(), seen)
+		return stripNamesAny(seen, t, func() *types.Signature {
+			params := stripNamesTuple(seen, t.Params())
+			results := stripNamesTuple(seen, t.Results())
 
 			if params == t.Params() && results == t.Results() {
 				return t
@@ -126,12 +126,12 @@ func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
 		})
 
 	case *types.Interface:
-		return stripNamesAny(seen, t, func(t *types.Interface) *types.Interface {
+		return stripNamesAny(seen, t, func() *types.Interface {
 			var methods []*types.Func
 			for i := range t.NumExplicitMethods() {
 				m := t.ExplicitMethod(i)
 				sig := m.Type()
-				newSig := stripNamesDispatch(sig, seen).(*types.Signature)
+				newSig := stripNamesDispatch(seen, sig).(*types.Signature)
 				if newSig != sig {
 					if methods == nil {
 						methods = slices.Collect(t.ExplicitMethods())
@@ -144,7 +144,7 @@ func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
 			var embeddeds []types.Type
 			for i := range t.NumEmbeddeds() {
 				em := t.EmbeddedType(i)
-				stripped := stripNamesDispatch(em, seen)
+				stripped := stripNamesDispatch(seen, em)
 				if stripped != em {
 					if embeddeds == nil {
 						embeddeds = slices.Collect(t.EmbeddedTypes())
@@ -177,9 +177,9 @@ func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
 			return types.NewChan(t.Dir(), elem)
 		})
 	case *types.Map:
-		return stripNamesAny(seen, t, func(t *types.Map) *types.Map {
-			key := stripNamesDispatch(t.Key(), seen)
-			elem := stripNamesDispatch(t.Elem(), seen)
+		return stripNamesAny(seen, t, func() *types.Map {
+			key := stripNamesDispatch(seen, t.Key())
+			elem := stripNamesDispatch(seen, t.Elem())
 			if key == t.Key() && elem == t.Elem() {
 				return t
 			}
@@ -187,7 +187,7 @@ func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
 		})
 
 	case *types.Struct:
-		return stripNamesAny(seen, t, func(t *types.Struct) *types.Struct {
+		return stripNamesAny(seen, t, func() *types.Struct {
 			numFields := t.NumFields()
 			if numFields == 0 {
 				return t
@@ -197,7 +197,7 @@ func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
 
 			for i := range numFields {
 				f := t.Field(i)
-				newT := stripNamesDispatch(f.Type(), seen)
+				newT := stripNamesDispatch(seen, f.Type())
 				if newT != f.Type() {
 					if fields == nil {
 						fields = slices.Collect(t.Fields())
@@ -221,7 +221,7 @@ func stripNamesDispatch(typ types.Type, seen stripNamesCache) types.Type {
 	}
 }
 
-func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tuple {
+func stripNamesTuple(seen stripNamesCache, tup *types.Tuple) *types.Tuple {
 	if tup == nil {
 		return nil
 	}
@@ -235,7 +235,7 @@ func stripNamesTuple(tup *types.Tuple, seen map[types.Type]types.Type) *types.Tu
 	for i := range tup.Len() {
 		v := tup.At(i)
 		typ := v.Type()
-		typStripped := stripNamesDispatch(typ, seen)
+		typStripped := stripNamesDispatch(seen, typ)
 
 		// Check if we need to transform this Var
 		if hasNames || typStripped != typ {
