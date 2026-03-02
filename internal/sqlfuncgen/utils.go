@@ -131,12 +131,12 @@ func stripNamesDispatch(seen stripNamesCache, typ types.Type) types.Type {
 			for i := range t.NumExplicitMethods() {
 				m := t.ExplicitMethod(i)
 				sig := m.Type()
-				newSig := stripNamesDispatch(seen, sig).(*types.Signature)
+				newSig := stripNamesDispatch(seen, sig)
 				if newSig != sig {
 					if methods == nil {
 						methods = slices.Collect(t.ExplicitMethods())
 					}
-					methods[i] = types.NewFunc(m.Pos(), m.Pkg(), m.Name(), newSig)
+					methods[i] = types.NewFunc(m.Pos(), m.Pkg(), m.Name(), newSig.(*types.Signature))
 				}
 			}
 
