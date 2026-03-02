@@ -18,6 +18,7 @@ package sqlfunc
 
 import (
 	"database/sql"
+	"fmt"
 	"reflect"
 
 	"github.com/dolmen-go/sqlfunc/internal/registry"
@@ -108,105 +109,190 @@ func doScan(fnType reflect.Type, fnValue reflect.Value) {
 //
 // The callback receives the scanned columns values as arguments and may return an error or a bool (false) to stop iterating.
 //
+// Errors returned by [sql.Rows.Scan] are wrapped with [ScanError].
+//
 // rows are closed before returning.
-func ForEach(rows *sql.Rows, callback any) error {
-	fnType := reflect.TypeOf(callback)
+func ForEach[Func any](rows *sql.Rows, callback Func) error {
+	fnType := reflect.TypeFor[Func]()
 	f := registryForEach(fnType)
-	if f == nil {
-
-		if fnType.Kind() != reflect.Func {
-			panic("callback must be a func")
-		}
-		numIn := fnType.NumIn()
-		if numIn == 0 {
-			panic("callback must accept at least one argument")
-		}
-
-		var returnType int
-		switch fnType.NumOut() {
-		case 0:
-		case 1:
-			switch fnType.Out(0) {
-			case typeBool:
-				returnType = 1
-			case typeError:
-				returnType = 2
-			default:
-				panic("callback may only return an error or a bool")
-			}
-		default:
-			panic("callback may only return an error or a bool")
-		}
-
-		inTypes := make([]reflect.Type, numIn, numIn)
-		for i := range numIn {
-			inTypes[i] = fnType.In(i)
-		}
-
-		f = (&runForEach{
-			inTypes:    inTypes,
-			returnType: returnType,
-		}).run
-		// Register in the background
-		go registry.ForEach.Register(fnType, f)
+	switch f := f.(type) {
+	case func(Func) func(rows *sql.Rows) error:
+		return forEachErr(rows, f(callback))
+	case func(Func) func(rows *sql.Rows) (bool, error):
+		return forEachBool(rows, f(callback))
+	case func(reflect.Value) func(rows *sql.Rows) error:
+		return forEachErr(rows, f(reflect.ValueOf(callback)))
+	case func(reflect.Value) func(rows *sql.Rows) (bool, error):
+		return forEachBool(rows, f(reflect.ValueOf(callback)))
+	case nil:
+		return doForEach(rows, fnType, reflect.ValueOf(callback), true)
+	default:
+		panic(fmt.Errorf("%T not handled", f))
 	}
-	return f(rows, callback)
 }
 
-type runForEach struct {
-	inTypes    []reflect.Type
-	returnType int
-}
-
-func (r *runForEach) run(rows *sql.Rows, callback any) (err error) {
-	defer func() {
-		e := rows.Close()
-		if err == nil {
-			err = e // TODO wrap
-		}
-	}()
-
-	fn := reflect.ValueOf(callback)
+func doForEach(rows *sql.Rows, fnType reflect.Type, fn reflect.Value, register bool) error {
+	if fnType.Kind() != reflect.Func {
+		panic("callback must be a func")
+	}
 	if fn.IsNil() {
 		panic("callback must be non-nil")
 	}
-
-	numIn := len(r.inTypes)
-	scanners := make([]any, numIn)
-	fnArgs := make([]reflect.Value, numIn)
-	for i := range scanners {
-		ptr := reflect.New(r.inTypes[i])
-		scanners[i] = ptr.Interface()
-		fnArgs[i] = ptr.Elem()
+	numIn := fnType.NumIn()
+	if numIn == 0 {
+		panic("callback must accept at least one argument")
+	}
+	inTypes := make([]reflect.Type, numIn)
+	for i := range numIn {
+		inTypes[i] = fnType.In(i)
 	}
 
-	for rows.Next() {
-		for i := range fnArgs {
-			fnArgs[i].SetZero()
+	switch fnType.NumOut() {
+	case 0:
+		buildScan := buildScanErr(inTypes, false)
+		if register {
+			// Register in the background
+			go registry.ForEach.Register(fnType, buildScan)
+		}
+		return forEachErr(rows, buildScan(fn))
+	case 1:
+		switch fnType.Out(0) {
+		case typeBool:
+			buildScan := buildScanBool(inTypes)
+			if register {
+				// Register in the background
+				go registry.ForEach.Register(fnType, buildScan)
+			}
+			return forEachBool(rows, buildScan(fn))
+		case typeError:
+			buildScan := buildScanErr(inTypes, true)
+			if register {
+				// Register in the background
+				go registry.ForEach.Register(fnType, buildScan)
+			}
+			return forEachErr(rows, buildScan(fn))
+		default:
+			panic("callback may only return an error or a bool")
+		}
+	default:
+		panic("callback may only return an error or a bool")
+	}
+}
+
+func buildScanErr(inTypes []reflect.Type, withError bool) func(callback reflect.Value) func(rows *sql.Rows) error {
+	return func(callback reflect.Value) func(rows *sql.Rows) error {
+		numIn := len(inTypes)
+		scanners := make([]any, numIn)
+		fnArgs := make([]reflect.Value, numIn)
+		for i := range scanners {
+			ptr := reflect.New(inTypes[i])
+			scanners[i] = ptr.Interface()
+			fnArgs[i] = ptr.Elem()
 		}
 
-		err = rows.Scan(scanners...)
-		if err != nil {
-			// TODO wrap err
+		if withError {
+			return func(rows *sql.Rows) error {
+				for i := range fnArgs {
+					fnArgs[i].SetZero()
+				}
+
+				if err := rows.Scan(scanners...); err != nil {
+					return ScanError{Err: err} // Wrap error
+				}
+
+				// TODO use reflect.TypeAssert (Go 1.25+)
+				if err, isError := callback.Call(fnArgs)[0].Interface().(error); isError {
+					return err // user error: don't wrap
+				}
+				return nil
+			}
+		} else {
+			return func(rows *sql.Rows) error {
+				for i := range fnArgs {
+					fnArgs[i].SetZero()
+				}
+
+				if err := rows.Scan(scanners...); err != nil {
+					return ScanError{Err: err}
+				}
+
+				callback.Call(fnArgs)
+				return nil
+			}
+		}
+	}
+}
+
+func buildScanBool(inTypes []reflect.Type) func(callback reflect.Value) func(rows *sql.Rows) (bool, error) {
+	return func(callback reflect.Value) func(rows *sql.Rows) (bool, error) {
+		numIn := len(inTypes)
+		scanners := make([]any, numIn)
+		fnArgs := make([]reflect.Value, numIn)
+		for i := range scanners {
+			ptr := reflect.New(inTypes[i])
+			scanners[i] = ptr.Interface()
+			fnArgs[i] = ptr.Elem()
+		}
+
+		return func(rows *sql.Rows) (bool, error) {
+			for i := range fnArgs {
+				fnArgs[i].SetZero()
+			}
+
+			if err := rows.Scan(scanners...); err != nil {
+				return false, ScanError{Err: err}
+			}
+
+			return callback.Call(fnArgs)[0].Bool(), nil
+		}
+	}
+}
+
+type ScanError struct {
+	Err error
+}
+
+func (s ScanError) Error() string {
+	return "scan: " + s.Err.Error()
+}
+
+func (s ScanError) Unwrap() error {
+	return s.Err
+}
+
+func forEachErr(rows *sql.Rows, scan func(rows *sql.Rows) error) (err error) {
+	defer func() {
+		err2 := rows.Close()
+		if err == nil {
+			err = err2
+		}
+	}()
+	for rows.Next() {
+		if err = scan(rows); err != nil {
 			return
 		}
-		switch r.returnType {
-		case 0:
-			fn.Call(fnArgs)
-		case 1:
-			// Stop iteration if callback returns false
-			if !fn.Call(fnArgs)[0].Bool() {
-				return
-			}
-		case 2:
-			var isError bool
-			// TODO use reflect.TypeAssert (Go 1.25+)
-			if err, isError = fn.Call(fnArgs)[0].Interface().(error); isError {
-				return // user error: don't wrap
-			}
+	}
+	err = rows.Err()
+	return
+}
+
+func forEachBool(rows *sql.Rows, scan func(rows *sql.Rows) (bool, error)) (err error) {
+	defer func() {
+		err2 := rows.Close()
+		if err == nil {
+			err = err2
+		}
+	}()
+	var cont bool
+	for rows.Next() {
+		cont, err = scan(rows)
+		if err != nil {
+			return
+		}
+		if !cont {
+			break
 		}
 	}
-
-	err = rows.Err() // TODO wrap
+	err = rows.Err()
 	return
 }
