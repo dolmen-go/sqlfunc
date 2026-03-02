@@ -51,14 +51,12 @@ func (AnyAPI) ForEach(rows *sql.Rows, callback any) error {
 	f := registryForEach(fnValue.Type())
 	switch f := f.(type) {
 	case func(reflect.Value) func(rows *sql.Rows) error:
-		return forEachErr(rows, f(fnValue))
-	case func(reflect.Value) func(rows *sql.Rows) (bool, error):
-		return forEachBool(rows, f(fnValue))
+		return runForEach(rows, f(fnValue))
 	case nil:
-		return doForEach(rows, fnValue.Type(), reflect.ValueOf(callback), true)
+		return dynamicForEach(rows, fnValue.Type(), reflect.ValueOf(callback), true)
 	default:
 		// Don't override an existing optimized callback with the reflect-based one: register=false
-		return doForEach(rows, fnValue.Type(), reflect.ValueOf(callback), false)
+		return dynamicForEach(rows, fnValue.Type(), reflect.ValueOf(callback), false)
 	}
 }
 

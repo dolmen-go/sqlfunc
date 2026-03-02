@@ -108,6 +108,7 @@ func doScan(fnType reflect.Type, fnValue reflect.Value) {
 // ForEach iterates an [*sql.Rows], scans the values of the row and calls the given callback function with the values.
 //
 // The callback receives the scanned columns values as arguments and may return an error or a bool (false) to stop iterating.
+// [Break] is also a special error that can be used to break iteration early.
 //
 // Errors returned by [sql.Rows.Scan] are wrapped with [ScanError].
 //
@@ -117,21 +118,17 @@ func ForEach[Func any](rows *sql.Rows, callback Func) error {
 	f := registryForEach(fnType)
 	switch f := f.(type) {
 	case func(Func) func(rows *sql.Rows) error:
-		return forEachErr(rows, f(callback))
-	case func(Func) func(rows *sql.Rows) (bool, error):
-		return forEachBool(rows, f(callback))
+		return runForEach(rows, f(callback))
 	case func(reflect.Value) func(rows *sql.Rows) error:
-		return forEachErr(rows, f(reflect.ValueOf(callback)))
-	case func(reflect.Value) func(rows *sql.Rows) (bool, error):
-		return forEachBool(rows, f(reflect.ValueOf(callback)))
+		return runForEach(rows, f(reflect.ValueOf(callback)))
 	case nil:
-		return doForEach(rows, fnType, reflect.ValueOf(callback), true)
+		return dynamicForEach(rows, fnType, reflect.ValueOf(callback), true)
 	default:
 		panic(fmt.Errorf("%T not handled", f))
 	}
 }
 
-func doForEach(rows *sql.Rows, fnType reflect.Type, fn reflect.Value, register bool) error {
+func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn reflect.Value, register bool) error {
 	if fnType.Kind() != reflect.Func {
 		panic("callback must be a func")
 	}
@@ -147,39 +144,30 @@ func doForEach(rows *sql.Rows, fnType reflect.Type, fn reflect.Value, register b
 		inTypes[i] = fnType.In(i)
 	}
 
+	var build func(reflect.Value) func(*sql.Rows) error
 	switch fnType.NumOut() {
 	case 0:
-		buildScan := buildScanErr(inTypes, false)
-		if register {
-			// Register in the background
-			go registry.ForEach.Register(fnType, buildScan)
-		}
-		return forEachErr(rows, buildScan(fn))
+		build = buildScan(inTypes, false, false)
 	case 1:
 		switch fnType.Out(0) {
 		case typeBool:
-			buildScan := buildScanBool(inTypes)
-			if register {
-				// Register in the background
-				go registry.ForEach.Register(fnType, buildScan)
-			}
-			return forEachBool(rows, buildScan(fn))
+			build = buildScan(inTypes, false, true)
 		case typeError:
-			buildScan := buildScanErr(inTypes, true)
-			if register {
-				// Register in the background
-				go registry.ForEach.Register(fnType, buildScan)
-			}
-			return forEachErr(rows, buildScan(fn))
+			build = buildScan(inTypes, true, false)
 		default:
 			panic("callback may only return an error or a bool")
 		}
 	default:
 		panic("callback may only return an error or a bool")
 	}
+	if register {
+		// Register in the background
+		go registry.ForEach.Register(fnType, build)
+	}
+	return runForEach(rows, build(fn))
 }
 
-func buildScanErr(inTypes []reflect.Type, withError bool) func(callback reflect.Value) func(rows *sql.Rows) error {
+func buildScan(inTypes []reflect.Type, withError bool, withBool bool) func(callback reflect.Value) func(rows *sql.Rows) error {
 	return func(callback reflect.Value) func(rows *sql.Rows) error {
 		numIn := len(inTypes)
 		scanners := make([]any, numIn)
@@ -206,6 +194,21 @@ func buildScanErr(inTypes []reflect.Type, withError bool) func(callback reflect.
 				}
 				return nil
 			}
+		} else if withBool {
+			return func(rows *sql.Rows) error {
+				for i := range fnArgs {
+					fnArgs[i].SetZero()
+				}
+
+				if err := rows.Scan(scanners...); err != nil {
+					return ScanError{Err: err}
+				}
+
+				if !callback.Call(fnArgs)[0].Bool() {
+					return Break // Special error to return early
+				}
+				return nil
+			}
 		} else {
 			return func(rows *sql.Rows) error {
 				for i := range fnArgs {
@@ -223,31 +226,16 @@ func buildScanErr(inTypes []reflect.Type, withError bool) func(callback reflect.
 	}
 }
 
-func buildScanBool(inTypes []reflect.Type) func(callback reflect.Value) func(rows *sql.Rows) (bool, error) {
-	return func(callback reflect.Value) func(rows *sql.Rows) (bool, error) {
-		numIn := len(inTypes)
-		scanners := make([]any, numIn)
-		fnArgs := make([]reflect.Value, numIn)
-		for i := range scanners {
-			ptr := reflect.New(inTypes[i])
-			scanners[i] = ptr.Interface()
-			fnArgs[i] = ptr.Elem()
-		}
+// Break is a special error that allows to return early from [ForEach].
+var Break breakError
 
-		return func(rows *sql.Rows) (bool, error) {
-			for i := range fnArgs {
-				fnArgs[i].SetZero()
-			}
+type breakError struct{}
 
-			if err := rows.Scan(scanners...); err != nil {
-				return false, ScanError{Err: err}
-			}
-
-			return callback.Call(fnArgs)[0].Bool(), nil
-		}
-	}
+func (breakError) Error() string {
+	return ""
 }
 
+// ScanError is an error returned by [ForEach] to identify an error returned by [sql.Rows.Scan].
 type ScanError struct {
 	Err error
 }
@@ -260,7 +248,7 @@ func (s ScanError) Unwrap() error {
 	return s.Err
 }
 
-func forEachErr(rows *sql.Rows, scan func(rows *sql.Rows) error) (err error) {
+func runForEach(rows *sql.Rows, scan func(rows *sql.Rows) error) (err error) {
 	defer func() {
 		err2 := rows.Close()
 		if err == nil {
@@ -269,28 +257,10 @@ func forEachErr(rows *sql.Rows, scan func(rows *sql.Rows) error) (err error) {
 	}()
 	for rows.Next() {
 		if err = scan(rows); err != nil {
+			if err == Break { // Special marker for bool-style callback
+				err = nil
+			}
 			return
-		}
-	}
-	err = rows.Err()
-	return
-}
-
-func forEachBool(rows *sql.Rows, scan func(rows *sql.Rows) (bool, error)) (err error) {
-	defer func() {
-		err2 := rows.Close()
-		if err == nil {
-			err = err2
-		}
-	}()
-	var cont bool
-	for rows.Next() {
-		cont, err = scan(rows)
-		if err != nil {
-			return
-		}
-		if !cont {
-			break
 		}
 	}
 	err = rows.Err()
