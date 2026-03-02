@@ -30,7 +30,7 @@ var (
 )
 
 type (
-	FuncForEach = func(*sql.Rows, any) error
+	FuncForEach = any
 	FuncScan    = reflect.Value
 
 	FuncStmt     = func(stmt *sql.Stmt) reflect.Value // Exec, QueryRow, Query
