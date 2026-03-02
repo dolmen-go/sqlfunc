@@ -1,4 +1,4 @@
-//go:build sqlfunc_no_registry
+//go:build sqlfunc_registry_off && !sqlfunc_registry_on
 
 /*
 Copyright 2026 Olivier Mengué

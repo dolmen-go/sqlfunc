@@ -171,7 +171,7 @@ func Generate(t testing.TB, patterns ...string) {
 
 		if len(gen.Funcs) > 0 {
 			var buf bytes.Buffer
-			fmt.Fprintf(&buf, "package %s\n\n"+`import "github.com/dolmen-go/sqlfunc/sqlfuncregistry"`+"\n\n", pkg.Name)
+			fmt.Fprintf(&buf, "//go:build sqlfunc_registry_on || !sqlfunc_registry_off\n\npackage %s\n\n"+`import "github.com/dolmen-go/sqlfunc/sqlfuncregistry"`+"\n\n", pkg.Name)
 
 			if len(gen.Imports) > 0 {
 				buf.WriteString("import (\n")
