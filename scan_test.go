@@ -37,8 +37,7 @@ func ExampleForEach() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -47,16 +46,14 @@ func ExampleForEach() {
 		` UNION ALL`+
 		` SELECT 2`)
 	if err != nil {
-		log.Printf("Query: %v", err)
-		return
+		log.Fatalf("Query: %v", err)
 	}
 
 	err = sqlfunc.ForEach(rows, func(n int) {
 		fmt.Println(n)
 	})
 	if err != nil {
-		log.Printf("ScanRows: %v", err)
-		return
+		log.Fatalf("ScanRows: %v", err)
 	}
 
 	fmt.Println("Done.")
@@ -73,8 +70,7 @@ func ExampleForEach_returnBool() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -85,8 +81,7 @@ func ExampleForEach_returnBool() {
 		` UNION ALL`+
 		` SELECT 3`)
 	if err != nil {
-		log.Printf("Query: %v", err)
-		return
+		log.Fatalf("Query: %v", err)
 	}
 
 	err = sqlfunc.ForEach(rows, func(n int) bool {
@@ -94,8 +89,7 @@ func ExampleForEach_returnBool() {
 		return n < 2 // Stop iterating on n == 2
 	})
 	if err != nil {
-		log.Printf("ScanRows: %v", err)
-		return
+		log.Fatalf("ScanRows: %v", err)
 	}
 
 	fmt.Println("Done.")
@@ -112,8 +106,7 @@ func ExampleForEach_returnError() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -124,8 +117,7 @@ func ExampleForEach_returnError() {
 		` UNION ALL`+
 		` SELECT 3`)
 	if err != nil {
-		log.Printf("Query: %v", err)
-		return
+		log.Fatalf("Query: %v", err)
 	}
 
 	err = sqlfunc.ForEach(rows, func(n sql.Null[int64]) error {
@@ -136,8 +128,7 @@ func ExampleForEach_returnError() {
 		return nil
 	})
 	if err != nil && !errors.Is(err, io.EOF) {
-		log.Printf("ScanRows: %v", err)
-		return
+		log.Fatalf("ScanRows: %v", err)
 	}
 
 	fmt.Println("Done.")
@@ -194,8 +185,7 @@ func ExampleScan() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -205,8 +195,7 @@ func ExampleScan() {
 		` UNION ALL`+
 		` SELECT 2`)
 	if err != nil {
-		log.Printf("Query1: %v", err)
-		return
+		log.Fatalf("Query1: %v", err)
 	}
 	defer rows.Close()
 
@@ -216,13 +205,12 @@ func ExampleScan() {
 	for rows.Next() {
 		var n int
 		if err = scan1(rows, &n); err != nil {
-			log.Printf("Scan1: %v", err)
-			return
+			log.Fatalf("Scan1: %v", err)
 		}
 		values1 = append(values1, n)
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Next1: %v", err)
+		log.Fatalf("Next1: %v", err)
 	}
 	fmt.Println(values1)
 
@@ -232,8 +220,7 @@ func ExampleScan() {
 		` UNION ALL`+
 		` SELECT 'b'`)
 	if err != nil {
-		log.Printf("Query2: %v", err)
-		return
+		log.Fatalf("Query2: %v", err)
 	}
 	defer rows.Close()
 
@@ -243,13 +230,12 @@ func ExampleScan() {
 	for rows.Next() {
 		s, err := scan2(rows)
 		if err != nil {
-			log.Printf("Scan2: %v", err)
-			return
+			log.Fatalf("Scan2: %v", err)
 		}
 		values2 = append(values2, s)
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Next2: %v", err)
+		log.Fatalf("Next2: %v", err)
 	}
 	fmt.Println(values2)
 
@@ -264,8 +250,7 @@ func ExampleScan_any() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -277,8 +262,7 @@ func ExampleScan_any() {
 		` UNION ALL`+
 		` SELECT 'a'`)
 	if err != nil {
-		log.Printf("Query1: %v", err)
-		return
+		log.Fatalf("Query1: %v", err)
 	}
 	defer rows.Close()
 
@@ -287,13 +271,12 @@ func ExampleScan_any() {
 	for rows.Next() {
 		var v any
 		if err = scan1(rows, &v); err != nil {
-			log.Printf("Scan1: %v", err)
-			return
+			log.Fatalf("Scan1: %v", err)
 		}
 		fmt.Printf("%T %#[1]v\n", v)
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Next1: %v", err)
+		log.Fatalf("Next1: %v", err)
 	}
 
 	// Output:

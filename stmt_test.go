@@ -29,7 +29,7 @@ import (
 func ExampleExec() {
 	check := func(msg string, err error) {
 		if err != nil {
-			panic(fmt.Errorf("%s: %v", msg, err))
+			log.Fatalf("%s: %v", msg, err)
 		}
 	}
 	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
@@ -88,14 +88,12 @@ func ExampleExec() {
 
 	_, _, err = getPOICoord(ctx, "Trifoully-les-Oies")
 	if err != sql.ErrNoRows {
-		log.Printf("getPOICoord should fail with sql.ErrNoRows")
-		return
+		log.Fatalf("getPOICoord should fail with sql.ErrNoRows")
 	}
 
 	lat, lon, err := getPOICoord(ctx, "Château de Versailles")
 	if err != nil {
-		log.Printf("getPOICoord should succeed but %q", err)
-		return
+		log.Fatalf("getPOICoord should succeed but %q", err)
 	}
 	fmt.Printf("%.4f, %.4f\n", lat, lon)
 
@@ -108,7 +106,7 @@ func ExampleExec() {
 func ExampleExec_withTx() {
 	check := func(msg string, err error) {
 		if err != nil {
-			panic(fmt.Errorf("%s: %v", msg, err))
+			log.Fatalf("%s: %v", msg, err)
 		}
 	}
 	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
@@ -216,7 +214,7 @@ func ExampleExec_withTx() {
 func ExampleQuery() {
 	check := func(msg string, err error) {
 		if err != nil {
-			panic(fmt.Errorf("%s: %v", msg, err))
+			log.Fatalf("%s: %v", msg, err)
 		}
 	}
 	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
@@ -252,7 +250,7 @@ func ExampleQuery() {
 func ExampleQuery_withArgs() {
 	check := func(msg string, err error) {
 		if err != nil {
-			panic(fmt.Errorf("%s: %v", msg, err))
+			log.Fatalf("%s: %v", msg, err)
 		}
 	}
 	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
@@ -287,7 +285,7 @@ func ExampleQuery_withArgs() {
 func ExampleQuery_withTx() {
 	check := func(msg string, err error) {
 		if err != nil {
-			panic(fmt.Errorf("%s: %v", msg, err))
+			log.Fatalf("%s: %v", msg, err)
 		}
 	}
 	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
@@ -326,7 +324,7 @@ func ExampleQuery_withTx() {
 func ExampleQueryRow_withArgs() {
 	check := func(msg string, err error) {
 		if err != nil {
-			panic(fmt.Errorf("%s: %v", msg, err))
+			log.Fatalf("%s: %v", msg, err)
 		}
 	}
 	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
