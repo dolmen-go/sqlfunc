@@ -55,8 +55,9 @@ func (AnyAPI) ForEach(rows *sql.Rows, callback any) error {
 	case nil:
 		return dynamicForEach(rows, fnValue.Type(), reflect.ValueOf(callback), true)
 	default:
-		// Don't override an existing optimized callback with the reflect-based one: register=false
-		return dynamicForEach(rows, fnValue.Type(), reflect.ValueOf(callback), false)
+		// call f with callback as argument
+		scanRow := reflect.ValueOf(f).Call([]reflect.Value{fnValue})[0].Interface().(func(rows *sql.Rows) error)
+		return runForEach(rows, scanRow)
 	}
 }
 
