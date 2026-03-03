@@ -64,6 +64,39 @@ func ExampleForEach() {
 	// Done.
 }
 
+func ExampleAnyAPI_ForEach() {
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	rows, err := db.QueryContext(ctx, ``+
+		`SELECT 1`+
+		` UNION ALL`+
+		` SELECT 2`)
+	if err != nil {
+		log.Fatalf("Query: %v", err)
+	}
+
+	err = sqlfunc.Any.ForEach(rows, func(n int) {
+		fmt.Println(n)
+	})
+	if err != nil {
+		log.Fatalf("ScanRows: %v", err)
+	}
+
+	fmt.Println("Done.")
+
+	// Output:
+	// 1
+	// 2
+	// Done.
+}
+
 func ExampleForEach_returnBool() {
 	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCtx()
@@ -225,6 +258,71 @@ func ExampleScan() {
 	defer rows.Close()
 
 	sqlfunc.Scan(&scan2)
+
+	var values2 []string
+	for rows.Next() {
+		s, err := scan2(rows)
+		if err != nil {
+			log.Fatalf("Scan2: %v", err)
+		}
+		values2 = append(values2, s)
+	}
+	if err = rows.Err(); err != nil {
+		log.Fatalf("Next2: %v", err)
+	}
+	fmt.Println(values2)
+
+	// Output:
+	// [1 2]
+	// [a b]
+}
+
+func ExampleAnyAPI_Scan() {
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	var scan1 func(*sql.Rows, *int) error
+	rows, err := db.QueryContext(ctx, ``+
+		`SELECT 1`+
+		` UNION ALL`+
+		` SELECT 2`)
+	if err != nil {
+		log.Fatalf("Query1: %v", err)
+	}
+	defer rows.Close()
+
+	sqlfunc.Any.Scan(&scan1)
+
+	var values1 []int
+	for rows.Next() {
+		var n int
+		if err = scan1(rows, &n); err != nil {
+			log.Fatalf("Scan1: %v", err)
+		}
+		values1 = append(values1, n)
+	}
+	if err = rows.Err(); err != nil {
+		log.Fatalf("Next1: %v", err)
+	}
+	fmt.Println(values1)
+
+	var scan2 func(*sql.Rows) (string, error)
+	rows, err = db.QueryContext(ctx, ``+
+		`SELECT 'a'`+
+		` UNION ALL`+
+		` SELECT 'b'`)
+	if err != nil {
+		log.Fatalf("Query2: %v", err)
+	}
+	defer rows.Close()
+
+	sqlfunc.Any.Scan(&scan2)
 
 	var values2 []string
 	for rows.Next() {

@@ -102,6 +102,82 @@ func ExampleExec() {
 	// 48.8016, 2.1204
 }
 
+func ExampleAnyAPI_Exec() {
+	check := func(msg string, err error) {
+		if err != nil {
+			log.Fatalf("%s: %v", msg, err)
+		}
+	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	check("Open", err)
+	defer checkDeferred("db.Close", db.Close)
+
+	// As the DB is in-memory, we need to use the same connection for all operations
+	conn, err := db.Conn(ctx)
+	check("Conn", err)
+	defer checkDeferred("conn.Close", conn.Close)
+
+	// POI = Point of Interest
+	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
+	check("Create table", err)
+
+	// newPOI is the function that will call the INSERT statement
+	var newPOI func(ctx context.Context, lat float32, lon float32, name string) (sql.Result, error)
+	closeStmt, err := sqlfunc.Any.Exec(
+		ctx, conn,
+		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
+		&newPOI,
+	)
+	check("Prepare newPOI", err)
+	defer checkDeferred("closeStmt", closeStmt)
+
+	// To call the prepared statement we use the strongly typed function
+	_, err = newPOI(ctx, 48.8016, 2.1204, "Château de Versailles")
+	check("newPOI", err)
+
+	var name string
+	err = conn.QueryRowContext(ctx, ``+
+		`SELECT name`+
+		` FROM poi`+
+		` WHERE lat BETWEEN 48.8015 AND 48.8017`+
+		` AND lon BETWEEN 2.1203 AND 2.1205`,
+	).Scan(&name)
+	check("Query", err)
+
+	fmt.Println(name)
+
+	var getPOICoord func(ctx context.Context, name string) (lat float64, lon float64, err error)
+	closeStmt, err = sqlfunc.Any.QueryRow(
+		ctx, conn, ``+
+			`SELECT lat, lon`+
+			` FROM poi`+
+			` WHERE name = ?`,
+		&getPOICoord,
+	)
+	check("Prepare getPOICoord", err)
+	defer checkDeferred("closeStmt", closeStmt)
+
+	_, _, err = getPOICoord(ctx, "Trifoully-les-Oies")
+	if err != sql.ErrNoRows {
+		log.Fatalf("getPOICoord should fail with sql.ErrNoRows")
+	}
+
+	lat, lon, err := getPOICoord(ctx, "Château de Versailles")
+	if err != nil {
+		log.Fatalf("getPOICoord should succeed but %q", err)
+	}
+	fmt.Printf("%.4f, %.4f\n", lat, lon)
+
+	// Output:
+	// Château de Versailles
+	// 48.8016, 2.1204
+}
+
 // ExampleExec_withTx shows support for transactions.
 func ExampleExec_withTx() {
 	check := func(msg string, err error) {
@@ -211,7 +287,7 @@ func ExampleExec_withTx() {
 	// countPOI after rollback: 0
 }
 
-func ExampleQuery() {
+func ExampleAnyAPI_Query() {
 	check := func(msg string, err error) {
 		if err != nil {
 			log.Fatalf("%s: %v", msg, err)
@@ -227,7 +303,7 @@ func ExampleQuery() {
 	defer checkDeferred("db.Close", db.Close)
 
 	var queryNames func(ctx context.Context) (*sql.Rows, error)
-	closeQueryNames, err := sqlfunc.Query(
+	closeQueryNames, err := sqlfunc.Any.Query(
 		ctx, db,
 		`SELECT name FROM poi ORDER BY name`,
 		&queryNames,
@@ -247,7 +323,46 @@ func ExampleQuery() {
 	// - Villeperdue
 }
 
-func ExampleQuery_withArgs() {
+func ExampleAnyAPI_Query_withTx() {
+	check := func(msg string, err error) {
+		if err != nil {
+			log.Fatalf("%s: %v", msg, err)
+		}
+	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
+	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
+	check("Open", err)
+	defer checkDeferred("Close", db.Close)
+
+	var queryByNameTx func(ctx context.Context, tx *sql.Tx, name string) (*sql.Rows, error)
+	closeQueryByNameTx, err := sqlfunc.Any.Query(
+		ctx, db,
+		`SELECT lat, lon FROM poi WHERE name = ?`,
+		&queryByNameTx,
+	)
+	check("Prepare queryByName", err)
+	defer checkDeferred("closeQueryByNameTx", closeQueryByNameTx)
+
+	tx, err := db.BeginTx(ctx, nil)
+	check("BeginTx", err)
+	defer checkDeferred("Rollback", tx.Rollback)
+
+	rows, err := queryByNameTx(ctx, tx, "Château de Versailles")
+	check("queryByNameTx", err)
+	err = sqlfunc.Any.ForEach(rows, func(lat, lon float64) {
+		fmt.Printf("(%.4f %.4f)\n", lat, lon)
+	})
+	check("ForEach", err)
+
+	// Output:
+	// (48.8016 2.1204)
+}
+
+func ExampleAnyAPI_Query_withArgs() {
 	check := func(msg string, err error) {
 		if err != nil {
 			log.Fatalf("%s: %v", msg, err)
@@ -263,7 +378,7 @@ func ExampleQuery_withArgs() {
 	defer checkDeferred("db.Close", db.Close)
 
 	var queryByName func(ctx context.Context, name string) (*sql.Rows, error)
-	closeQueryByName, err := sqlfunc.Query(
+	closeQueryByName, err := sqlfunc.Any.Query(
 		ctx, db,
 		`SELECT lat, lon FROM poi WHERE name = ?`,
 		&queryByName,
