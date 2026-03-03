@@ -22,10 +22,19 @@ jobs:
         #     go-version: 1.19.x
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout (with full history for SonarQube)
+        uses: actions/checkout@v6
+        if: matrix.os == 'ubuntu-latest'
         with:
-          # fetch-depth: 2
-          fetch-depth: 50
+          # Default is 1 (shallow clone with a single commit)
+          # but SonarQube wants full history
+          fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v6
+        if: matrix.os != 'ubuntu-latest'
+        with:
+          fetch-depth: 2
+
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
