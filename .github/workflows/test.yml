@@ -5,23 +5,13 @@ on: [push, pull_request]
 jobs:
   test:
     strategy:
-      matrix:
+      matrix: &test-ubuntu-matrix
         go-version:
           - 1.26.x
-          - 1.25.x
-          - 1.24.x
-          # modernc.org/sqlite v1.40+ (used in tests) requires Go 1.24+
         os:
           - ubuntu-latest
-          - macos-latest
-          - windows-latest
-        # We used to exclude old versions of Go (up to 1.19) on Windows
-        # https://github.com/golang/go/issues/51007
-        # exclude:
-        #   - os: windows-latest
-        #     go-version: 1.19.x
     runs-on: ${{ matrix.os }}
-    steps:
+    steps: &test-steps
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -37,14 +27,34 @@ jobs:
       - name: Run tests (sqlfunc_registry_off)
         run: go test -v -race -tags sqlfunc_registry_off ./...
 
-  quality:
+
+  test-others:
     needs: [ test ]
     strategy:
       matrix:
         go-version:
           - 1.26.x
+          - 1.25.x
+          - 1.24.x
+          # modernc.org/sqlite v1.40+ (used in tests) requires Go 1.24+
         os:
           - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        # We used to exclude old versions of Go (up to 1.19) on Windows
+        # https://github.com/golang/go/issues/51007
+        # exclude:
+        #   - os: windows-latest
+        #     go-version: 1.19.x
+        exclude:
+          - *test-ubuntu-matrix
+    runs-on: ${{ matrix.os }}
+    steps: *test-steps
+
+  quality:
+    needs: [ test ]
+    strategy:
+      matrix: *test-ubuntu-matrix
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout (with full history for SonarQube)
