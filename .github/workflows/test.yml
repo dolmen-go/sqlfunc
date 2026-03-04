@@ -1,9 +1,35 @@
-name: Test and coverage
+name: Test and quality reports
 
 on: [push, pull_request]
 
 jobs:
   test:
+    strategy:
+      matrix: &test-ubuntu-matrix
+        go-version:
+          - 1.26.x
+        os:
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps: &test-steps
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Download dependencies
+        run: go mod download
+      - name: Run tests
+        run: go test -v -race ./...
+      - name: Run tests (sqlfunc_registry_off)
+        run: go test -v -race -tags sqlfunc_registry_off ./...
+
+
+  test-others:
+    needs: [ test ]
     strategy:
       matrix:
         go-version:
@@ -20,50 +46,40 @@ jobs:
         # exclude:
         #   - os: windows-latest
         #     go-version: 1.19.x
+        exclude:
+          - *test-ubuntu-matrix
+    runs-on: ${{ matrix.os }}
+    steps: *test-steps
+
+  quality:
+    needs: [ test ]
+    strategy:
+      matrix: *test-ubuntu-matrix
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout (with full history for SonarQube)
         uses: actions/checkout@v6
-        if: matrix.os == 'ubuntu-latest'
         with:
           # Default is 1 (shallow clone with a single commit)
           # but SonarQube wants full history
           fetch-depth: 0
-      - name: Checkout
-        uses: actions/checkout@v6
-        if: matrix.os != 'ubuntu-latest'
-        with:
-          fetch-depth: 2
-
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
       - name: Download dependencies
         run: go mod download
-      - name: Run coverage
+      - name: Run tests (JSON output, for SonarQube)
         # Powershell Core has problems with '=': -coverprofile=coverage.out
-        run: go test -v -race -coverprofile coverage.out -covermode atomic ./...
-      - name: Run tests (JSON, for SonarQube)
-        run: go test -json ./... >gotest.out
-      - name: Upload coverage to Codecov (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: bash <(curl -s https://codecov.io/bash)
-      - name: Upload coverage to Codecov (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install codecov
-          codecov.exe -f coverage.out
-
-      #- name: Archive code coverage results
-      #  uses: actions/upload-artifact@v4
-      #  with:
-      #    name: code-coverage-report
-      #    path: coverage.out
+        run: go test -json -coverprofile coverage.1.out -covermode atomic ./... >gotest.out
+      - name: Run tests (JSON output, for SonarQube)
+        run: go test -json -coverprofile coverage.2.out -covermode atomic -tags sqlfunc_registry_off ./... >>gotest.out
+      - name: Merge coverage
+        run: cat coverage.?.out >coverage.out
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7
-        if: matrix.os == 'ubuntu-latest'
         env:
+          # https://sonarcloud.io/project/configuration/GitHubActions?id=dolmen-go_sqlfunc
           # https://github.com/dolmen-go/sqlfunc/settings/secrets/actions
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -75,12 +91,18 @@ jobs:
       - name: SonarQube Quality Gate
         id: sonarqube-quality-gate-check
         uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
-        if: matrix.os == 'ubuntu-latest'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-# FIXME marked as error
-#      - name: SonarQube Quality Gate Status
-#        run: echo "SonarQube Quality Gate status: ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
-#        if: matrix.os == 'ubuntu-latest'
+      # FIXME marked as error
+      # - name: SonarQube Quality Gate Status
+      #   run: echo "SonarQube Quality Gate status: ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
 
+      - name: Upload coverage to Codecov (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: bash <(curl -s https://codecov.io/bash)
+      #- name: Upload coverage to Codecov (Windows)
+      #  if: matrix.os == 'windows-latest'
+      #  run: |
+      #    choco install codecov
+      #    codecov.exe -f coverage.out
