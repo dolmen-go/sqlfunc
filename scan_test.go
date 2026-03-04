@@ -179,7 +179,6 @@ func TestForEachMulti(t *testing.T) {
 		db, err := sql.Open(sqliteDriver, ":memory:")
 		if err != nil {
 			t.Fatalf("Open: %v", err)
-			return
 		}
 		defer db.Close()
 
@@ -190,8 +189,7 @@ func TestForEachMulti(t *testing.T) {
 				` UNION ALL`+
 				` SELECT 2`)
 			if err != nil {
-				t.Errorf("Query: %v", err)
-				return
+				t.Fatalf("Query: %v", err)
 			}
 
 			err = sqlfunc.ForEach(rows, func(n int) error {
@@ -199,8 +197,7 @@ func TestForEachMulti(t *testing.T) {
 				return nil
 			})
 			if err != nil {
-				t.Errorf("ScanRows: %v", err)
-				return
+				t.Fatalf("ScanRows: %v", err)
 			}
 			t.Log(time.Since(start))
 		}
@@ -546,7 +543,6 @@ func TestForEach_oneColumn(t *testing.T) {
 	db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
-		return
 	}
 	defer db.Close()
 
@@ -577,20 +573,17 @@ func TestForEach_oneColumn(t *testing.T) {
 	t.Log("Get connection...")
 	conn, err := db.Conn(t.Context())
 	if err != nil {
-		t.Errorf("Conn: %v", err)
-		return
+		t.Fatalf("Conn: %v", err)
 	}
 
 	t.Log("Create table...")
 	_, err = conn.ExecContext(t.Context(), `CREATE TABLE t1 (dt DATETIME)`)
 	if err != nil {
-		t.Errorf("Create table: %v", err)
-		return
+		t.Fatalf("Create table: %v", err)
 	}
 	_, err = conn.ExecContext(t.Context(), `INSERT INTO t1 (dt) VALUES (datetime('2026-02-20 15:19:56'))`)
 	if err != nil {
-		t.Errorf("Insert: %v", err)
-		return
+		t.Fatalf("Insert: %v", err)
 	}
 
 	t.Run("oneColumn_Time", func(t *testing.T) {
@@ -843,7 +836,6 @@ func BenchmarkForEach(b *testing.B) {
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		b.Fatalf("Open: %v", err)
-		return
 	}
 	defer db.Close()
 
@@ -902,8 +894,7 @@ func BenchmarkScan(b *testing.B) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		b.Errorf("Open: %v", err)
-		return
+		b.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -937,6 +928,7 @@ func BenchmarkScan(b *testing.B) {
 				var n int
 				if err := rows.Scan(&n); err != nil {
 					b.Fatal(err)
+					return
 				}
 				_ = n
 			}
@@ -956,6 +948,7 @@ func BenchmarkScan(b *testing.B) {
 				var n int
 				if err := scan(rows, &n); err != nil {
 					b.Fatal(err)
+					return
 				}
 				_ = n
 			}
@@ -976,6 +969,7 @@ func BenchmarkScan(b *testing.B) {
 				n, err := scan(rows)
 				if err != nil {
 					b.Fatal(err)
+					return
 				}
 				_ = n
 			}
@@ -997,7 +991,6 @@ func benchScan_oneColumn[T any](
 		stmt, err := conn.PrepareContext(tb.Context(), query)
 		if err != nil {
 			tb.Fatalf("Prepare: %v", err)
-			return
 		}
 		defer stmt.Close()
 
@@ -1124,8 +1117,7 @@ func suiteScan(tb TestingB) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
 	if err != nil {
-		tb.Errorf("Open: %v", err)
-		return
+		tb.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
