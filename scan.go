@@ -119,20 +119,21 @@ func ForEach[Func any](rows *sql.Rows, callback Func) error {
 	switch f := f.(type) {
 	case func(Func) func(rows *sql.Rows) error:
 		return runForEach(rows, f(callback))
-	case func(reflect.Value) func(rows *sql.Rows) error:
-		return runForEach(rows, f(reflect.ValueOf(callback)))
-	case nil:
-		return dynamicForEach(rows, fnType, reflect.ValueOf(callback), true)
+	case func(any) func(rows *sql.Rows) error:
+		return runForEach(rows, f(callback))
+	case nil: // not in cache
+		return dynamicForEach(rows, fnType, callback, true)
 	default:
 		panic(fmt.Errorf("%T not handled", f))
 	}
 }
 
-func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn reflect.Value, register bool) error {
+func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn any, register bool) error {
 	if fnType.Kind() != reflect.Func {
 		panic("callback must be a func")
 	}
-	if fn.IsNil() {
+	fnValue := reflect.ValueOf(fn)
+	if fnValue.IsNil() {
 		panic("callback must be non-nil")
 	}
 	numIn := fnType.NumIn()
@@ -144,7 +145,7 @@ func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn reflect.Value, regis
 		inTypes[i] = fnType.In(i)
 	}
 
-	var build func(reflect.Value) func(*sql.Rows) error
+	var build func(any) func(*sql.Rows) error
 	switch fnType.NumOut() {
 	case 0:
 		build = buildScan(inTypes, false, false)
@@ -167,8 +168,9 @@ func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn reflect.Value, regis
 	return runForEach(rows, build(fn))
 }
 
-func buildScan(inTypes []reflect.Type, withError bool, withBool bool) func(callback reflect.Value) func(rows *sql.Rows) error {
-	return func(callback reflect.Value) func(rows *sql.Rows) error {
+func buildScan(inTypes []reflect.Type, withError bool, withBool bool) func(callback any) func(rows *sql.Rows) error {
+	return func(callback any) func(rows *sql.Rows) error {
+		cbValue := reflect.ValueOf(callback)
 		numIn := len(inTypes)
 		scanners := make([]any, numIn)
 		fnArgs := make([]reflect.Value, numIn)
@@ -189,7 +191,7 @@ func buildScan(inTypes []reflect.Type, withError bool, withBool bool) func(callb
 				}
 
 				// TODO use reflect.TypeAssert (Go 1.25+)
-				if err, isError := callback.Call(fnArgs)[0].Interface().(error); isError {
+				if err, isError := cbValue.Call(fnArgs)[0].Interface().(error); isError {
 					return err // user error: don't wrap
 				}
 				return nil
@@ -204,7 +206,7 @@ func buildScan(inTypes []reflect.Type, withError bool, withBool bool) func(callb
 					return ScanError{Err: err}
 				}
 
-				if !callback.Call(fnArgs)[0].Bool() {
+				if !cbValue.Call(fnArgs)[0].Bool() {
 					return Break // Special error to return early
 				}
 				return nil
@@ -219,7 +221,7 @@ func buildScan(inTypes []reflect.Type, withError bool, withBool bool) func(callb
 					return ScanError{Err: err}
 				}
 
-				callback.Call(fnArgs)
+				cbValue.Call(fnArgs)
 				return nil
 			}
 		}
