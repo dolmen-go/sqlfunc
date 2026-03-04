@@ -545,7 +545,7 @@ func TestForEach_oneColumn(t *testing.T) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
 	if err != nil {
-		log.Printf("Open: %v", err)
+		t.Fatalf("Open: %v", err)
 		return
 	}
 	defer db.Close()
@@ -842,7 +842,7 @@ func BenchmarkForEach(b *testing.B) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
+		b.Fatalf("Open: %v", err)
 		return
 	}
 	defer db.Close()
