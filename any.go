@@ -53,7 +53,7 @@ func (AnyAPI) ForEach(rows *sql.Rows, callback any) error {
 	case func(any) func(rows *sql.Rows) error:
 		return runForEach(rows, f(callback))
 	case nil: // not in cache
-		return dynamicForEach(rows, fnType, callback, true)
+		return dynamicForEach(rows, fnType, callback)
 	default:
 		// call f with callback as argument
 		scanRow := reflect.ValueOf(f).Call([]reflect.Value{reflect.ValueOf(callback)})[0].Interface().(func(rows *sql.Rows) error)

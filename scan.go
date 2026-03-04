@@ -122,13 +122,13 @@ func ForEach[Func any](rows *sql.Rows, callback Func) error {
 	case func(any) func(rows *sql.Rows) error:
 		return runForEach(rows, f(callback))
 	case nil: // not in cache
-		return dynamicForEach(rows, fnType, callback, true)
+		return dynamicForEach(rows, fnType, callback)
 	default:
 		panic(fmt.Errorf("%T not handled", f))
 	}
 }
 
-func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn any, register bool) error {
+func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn any) error {
 	if fnType.Kind() != reflect.Func {
 		panic("callback must be a func")
 	}
@@ -161,10 +161,10 @@ func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn any, register bool) 
 	default:
 		panic("callback may only return an error or a bool")
 	}
-	if register {
-		// Register in the background
-		go registry.ForEach.Register(fnType, build)
-	}
+
+	// Register in the background
+	go registry.ForEach.Register(fnType, build)
+
 	return runForEach(rows, build(fn))
 }
 
