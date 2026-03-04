@@ -76,15 +76,6 @@ jobs:
       - name: Merge coverage
         run: cat coverage.?.out >coverage.out
 
-      - name: Upload coverage to Codecov (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: bash <(curl -s https://codecov.io/bash)
-      #- name: Upload coverage to Codecov (Windows)
-      #  if: matrix.os == 'windows-latest'
-      #  run: |
-      #    choco install codecov
-      #    codecov.exe -f coverage.out
-
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7
         env:
@@ -103,6 +94,15 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-# FIXME marked as error
-#      - name: SonarQube Quality Gate Status
-#        run: echo "SonarQube Quality Gate status: ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
+      # FIXME marked as error
+      # - name: SonarQube Quality Gate Status
+      #   run: echo "SonarQube Quality Gate status: ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
+
+      - name: Upload coverage to Codecov (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: bash <(curl -s https://codecov.io/bash)
+      #- name: Upload coverage to Codecov (Windows)
+      #  if: matrix.os == 'windows-latest'
+      #  run: |
+      #    choco install codecov
+      #    codecov.exe -f coverage.out
