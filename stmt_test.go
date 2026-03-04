@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"testing"
 	"time"
 
 	"github.com/dolmen-go/sqlfunc"
@@ -466,4 +467,72 @@ func ExampleQueryRow_withArgs() {
 
 	// Output:
 	// (48.8016 2.1204)
+}
+
+type panicConn string
+
+func (scs panicConn) PrepareContext(ctx context.Context, query string) (_ *sql.Stmt, _ error) {
+	panic(string(scs))
+}
+
+func TestExecInvalidSignatures(t *testing.T) {
+	CheckInvalidTargets(t, new(struct {
+		Any         any                                                   `panic:"fnPtr must be a pointer to a *func* variable"`
+		Int         int                                                   `panic:"fnPtr must be a pointer to a *func* variable"`
+		NoContext   func()                                                `panic:"func first arg must be a context.Context"`
+		NoError     func(context.Context)                                 `panic:"func must return (sql.Result, error)"`
+		NoResult    func(context.Context) error                           `panic:"func must return (sql.Result, error)"`
+		NotResultIE func(context.Context) (int64, error)                  `panic:"func must return (sql.Result, error)"`
+		NotResultEE func(context.Context) (error, error)                  `panic:"func must return (sql.Result, error)"`
+		NotResultRI func(context.Context) (sql.Result, int)               `panic:"func must return (sql.Result, error)"`
+		NotError    func(context.Context) (sql.Result, sql.Result)        `panic:"func must return (sql.Result, error)"`
+		ResultREE   func(context.Context) (sql.Result, error, error)      `panic:"func must return (sql.Result, error)"`
+		ResultRRE   func(context.Context) (sql.Result, sql.Result, error) `panic:"func must return (sql.Result, error)"`
+		// sql.Result is an interface. Can't be returned as pointer.
+		ResultIsPtr func(context.Context) (*sql.Result, error) `panic:"func must return (sql.Result, error)"`
+
+		NotTxPtr func(context.Context, sql.Tx) (sql.Result, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
+	}), func(fnPtr any) {
+		_, err := sqlfunc.Any.Exec(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
+		panic(err)
+	})
+}
+
+func TestQueryInvalidSignatures(t *testing.T) {
+	CheckInvalidTargets(t, new(struct {
+		Any       any                                                 `panic:"fnPtr must be a pointer to a *func* variable"`
+		Int       int                                                 `panic:"fnPtr must be a pointer to a *func* variable"`
+		NoContext func()                                              `panic:"func first arg must be a context.Context"`
+		NoError   func(context.Context)                               `panic:"func must return (*sql.Rows, error)"`
+		NotRowsIE func(context.Context) (int64, error)                `panic:"func must return (*sql.Rows, error)"`
+		NotRowsEE func(context.Context) (error, error)                `panic:"func must return (*sql.Rows, error)"`
+		NotRowsRI func(context.Context) (*sql.Rows, int)              `panic:"func must return (*sql.Rows, error)"`
+		NotError  func(context.Context) (*sql.Rows, *sql.Rows)        `panic:"func must return (*sql.Rows, error)"`
+		ResultREE func(context.Context) (*sql.Rows, error, error)     `panic:"func must return (*sql.Rows, error)"`
+		ResultRRE func(context.Context) (*sql.Rows, *sql.Rows, error) `panic:"func must return (*sql.Rows, error)"`
+
+		NotTxPtr func(context.Context, sql.Tx) (*sql.Rows, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
+	}), func(fnPtr any) {
+		_, err := sqlfunc.Any.Query(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
+		panic(err)
+	})
+}
+
+func TestQueryRowInvalidSignatures(t *testing.T) {
+	CheckInvalidTargets(t, new(struct {
+		Any              any                                     `panic:"fnPtr must be a pointer to a *func* variable"`
+		Int              int                                     `panic:"fnPtr must be a pointer to a *func* variable"`
+		NoContext        func()                                  `panic:"func first arg must be a context.Context"`
+		NoError          func(context.Context)                   `panic:"func must return at least one column"`
+		NoResult         func(context.Context) error             `panic:"func must return at least one column"`
+		NoErrorI         func(context.Context) int64             `panic:"func must return an error" todo:"should return an error"`
+		NoErrorII        func(context.Context) (int64, int64)    `panic:"func must return an error"`
+		ReturnPtrPtr     func(context.Context) (**int64, error)  `panic:"func must not return double pointer" todo:"should reject double pointer"`
+		ReturnRowPlusErr func(context.Context) (*sql.Row, error) `panic:"func must return ONLY *sql.Row" todo:"should reject anything beyond row"`
+
+		NotTxPtr func(context.Context, sql.Tx) (*sql.Row, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
+	}), func(fnPtr any) {
+		_, err := sqlfunc.Any.QueryRow(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
+		panic(err)
+	})
 }

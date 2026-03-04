@@ -16,7 +16,72 @@ limitations under the License.
 
 package sqlfunc_test
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+// CatchPanic runs f and returns the recovered panic, if any.
+func CatchPanic(f func()) (p any) {
+	defer func() {
+		p = recover()
+	}()
+
+	f()
+
+	return
+}
+
+// CheckInvalidTargets runs "fn" with a pointer to each field of struct "tests".
+//
+// Each field is a test. The field name is the test name.
+// The tags attached to fields specify the expected behaviour:
+//   - panic: the expected string panic value
+//   - todo: skip failure of the test, or report an unexpected success
+func CheckInvalidTargets(t *testing.T, tests any, fn func(any)) {
+	v := reflect.ValueOf(tests)
+	if v.Kind() != reflect.Struct {
+		v = v.Elem()
+	}
+	vt := v.Type()
+	if vt.Kind() != reflect.Struct {
+		t.Fatalf("%v is not a struct", vt.String())
+	}
+	for fieldIdx := range vt.NumField() {
+		fieldType := vt.Field(fieldIdx)
+		name := fieldType.Name
+		t.Run(name, func(t *testing.T) {
+			t.Log("Type:", fieldType.Type)
+			expected, hasPanic := fieldType.Tag.Lookup("panic")
+			if !hasPanic {
+				t.Fatalf(`%s: missing "panic" tag`, name)
+			}
+
+			p := CatchPanic(func() {
+				fn(v.Field(fieldIdx).Addr().Interface())
+			})
+			if p == nil {
+				if todo, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
+					t.Skip("TODO:", todo)
+				}
+				t.Fatalf("Expected panic: %q", expected)
+			}
+			if expected != "" {
+				if p != expected {
+					if todo, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
+						t.Skip("TODO:", todo)
+					}
+					t.Fatalf("Panic:     %q\n\tExpected: %q", p, expected)
+				}
+			} else {
+				t.Logf("Panic (expected, but not specified): %q", p)
+			}
+			if _, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
+				t.Fatal("Not a TODO")
+			}
+		})
+	}
+}
 
 // TestingB is an extension of [testing.TB] that abstracts both [*testing.T] and [*testing.B],
 // allowing to write benchmarks that can also be run as tests without modification.
