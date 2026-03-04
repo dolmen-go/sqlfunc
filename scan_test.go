@@ -441,6 +441,25 @@ func TestScanScanner(t *testing.T) {
 	})
 }
 
+func TestScanInvalidSignatures(t *testing.T) {
+	CheckInvalidTargets(t, new(struct {
+		Any     any                   `panic:"fnPtr must be a pointer to a *func* variable"`
+		NoArg   func()                `panic:"func first arg must be an *sql.Rows"`
+		NoRows1 func(int)             `panic:"func first arg must be an *sql.Rows"`
+		NoRows2 func() int            `panic:"func first arg must be an *sql.Rows"`
+		NoRows3 func() error          `panic:"func first arg must be an *sql.Rows"`
+		NoError func(*sql.Rows)       `panic:"func must return error as last value"`
+		NoArgs  func(*sql.Rows) error `panic:"func must either take scanners as arguments or return values"`
+
+		InOut func(*sql.Rows, *int64) (int64, error) `panic:"func must either take scanners as arguments or return values"`
+
+		InNotPtr    func(*sql.Rows, int64) error     `panic:"" todo:"should reject non-pointer"`
+		InPtrPtrPtr func(*sql.Rows, ***int64) error  `panic:"" todo:"should reject double pointer as input"`
+		OutPtrPtr   func(*sql.Rows) (**int64, error) `panic:"" todo:"should reject double pointer as output"`
+		OutPtrItf   func(*sql.Rows) (*any, error)    `panic:"" todo:"no check yet"`
+	}), sqlfunc.Any.Scan)
+}
+
 func testForEach_oneColumn[T any](
 	t *testing.T,
 	db interface {
