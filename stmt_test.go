@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"reflect"
 	"testing"
 	"time"
 
@@ -500,6 +501,35 @@ func TestExecInvalidSignatures(t *testing.T) {
 		_, err := sqlfunc.Any.Exec(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
 	})
+
+	t.Run("NilPtr", func(t *testing.T) {
+		t.Run("Any", func(t *testing.T) {
+			for _, v := range []any{
+				nil,
+				(func(context.Context) (sql.Result, error))(nil),
+				(*func(context.Context) (sql.Result, error))(nil),
+			} {
+				val := reflect.ValueOf(&v).Elem()
+				typ := val.Type()
+				if !val.IsNil() {
+					typ = val.Elem().Type()
+				}
+				t.Run(typ.String()+"(nil)", func(t *testing.T) {
+					MustPanic(t, [...]string{
+						"fnPtr must be non-nil",
+						"fnPtr must be a pointer to a *func* variable",
+					}, func() {
+						sqlfunc.Any.Exec(context.Background(), panicConn("signature validation failure"), "SELECT 1", v)
+					})
+				})
+			}
+		})
+		t.Run("Typed", func(t *testing.T) {
+			MustPanic(t, "fnPtr must be non-nil", func() {
+				sqlfunc.Scan((*func(context.Context) (sql.Result, error))(nil))
+			})
+		})
+	})
 }
 
 func TestQueryInvalidSignatures(t *testing.T) {
@@ -524,6 +554,35 @@ func TestQueryInvalidSignatures(t *testing.T) {
 		_, err := sqlfunc.Any.Query(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
 	})
+
+	t.Run("NilPtr", func(t *testing.T) {
+		t.Run("Any", func(t *testing.T) {
+			for _, v := range []any{
+				nil,
+				(func(context.Context) (*sql.Rows, error))(nil),
+				(*func(context.Context) (*sql.Rows, error))(nil),
+			} {
+				val := reflect.ValueOf(&v).Elem()
+				typ := val.Type()
+				if !val.IsNil() {
+					typ = val.Elem().Type()
+				}
+				t.Run(typ.String()+"(nil)", func(t *testing.T) {
+					MustPanic(t, [...]string{
+						"fnPtr must be non-nil",
+						"fnPtr must be a pointer to a *func* variable",
+					}, func() {
+						sqlfunc.Any.Exec(context.Background(), panicConn("signature validation failure"), "SELECT 1", v)
+					})
+				})
+			}
+		})
+		t.Run("Typed", func(t *testing.T) {
+			MustPanic(t, "fnPtr must be non-nil", func() {
+				sqlfunc.Scan((*func(context.Context) (*sql.Rows, error))(nil))
+			})
+		})
+	})
 }
 
 func TestQueryRowInvalidSignatures(t *testing.T) {
@@ -546,5 +605,34 @@ func TestQueryRowInvalidSignatures(t *testing.T) {
 	}), func(fnPtr any) {
 		_, err := sqlfunc.Any.QueryRow(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
+	})
+
+	t.Run("NilPtr", func(t *testing.T) {
+		t.Run("Any", func(t *testing.T) {
+			for _, v := range []any{
+				nil,
+				(func(context.Context) *sql.Row)(nil),
+				(*func(context.Context) *sql.Row)(nil),
+			} {
+				val := reflect.ValueOf(&v).Elem()
+				typ := val.Type()
+				if !val.IsNil() {
+					typ = val.Elem().Type()
+				}
+				t.Run(typ.String()+"(nil)", func(t *testing.T) {
+					MustPanic(t, [...]string{
+						"fnPtr must be non-nil",
+						"fnPtr must be a pointer to a *func* variable",
+					}, func() {
+						sqlfunc.Any.Exec(context.Background(), panicConn("signature validation failure"), "SELECT 1", v)
+					})
+				})
+			}
+		})
+		t.Run("Typed", func(t *testing.T) {
+			MustPanic(t, "fnPtr must be non-nil", func() {
+				sqlfunc.Scan((*func(context.Context) *sql.Row)(nil))
+			})
+		})
 	})
 }
