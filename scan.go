@@ -234,7 +234,7 @@ func buildScan(inTypes []reflect.Type, withError bool, withBool bool) func(callb
 // Break is a special error that allows to return early from [ForEach].
 var Break breakError
 
-type breakError struct{}
+type breakError [0]struct{}
 
 func (breakError) Error() string {
 	return ""
