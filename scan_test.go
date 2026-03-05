@@ -19,9 +19,7 @@ package sqlfunc_test
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"io"
 	"log"
 	"reflect"
 	"strings"
@@ -157,11 +155,11 @@ func ExampleForEach_returnError() {
 	err = sqlfunc.ForEach(rows, func(n sql.Null[int64]) error {
 		fmt.Println(n.V)
 		if n.V == 2 {
-			return io.EOF
+			return sqlfunc.Break
 		}
 		return nil
 	})
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil { // Note that sqlfunc.Break is caught
 		log.Fatalf("ScanRows: %v", err)
 	}
 
