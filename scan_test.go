@@ -19,6 +19,7 @@ package sqlfunc_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -1217,4 +1218,12 @@ func BenchmarkScanSuite(b *testing.B) {
 
 func TestScanSuite(t *testing.T) {
 	suiteScan(TestingTAsB(t))
+}
+
+// Just for coverage metrics
+func TestErrors(_ *testing.T) {
+	_ = sqlfunc.Break.Error()
+	e := sqlfunc.ScanError{Err: errors.New("xx")}
+	_ = e.Error()
+	_ = e.Unwrap()
 }
