@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -461,6 +462,35 @@ func TestScanInvalidSignatures(t *testing.T) {
 		VariadicInts func(*sql.Rows, ...int64) error `panic:"func must not be variadic"`
 		VariadicRows func(...*sql.Rows) error        `panic:"func must not be variadic"`
 	}), sqlfunc.Any.Scan)
+
+	t.Run("NilPtr", func(t *testing.T) {
+		t.Run("Any", func(t *testing.T) {
+			for _, v := range []any{
+				nil,
+				(func(*sql.Rows, int64) error)(nil),
+				(*func(*sql.Rows, int64) error)(nil),
+			} {
+				val := reflect.ValueOf(&v).Elem()
+				typ := val.Type()
+				if !val.IsNil() {
+					typ = val.Elem().Type()
+				}
+				t.Run(typ.String()+"(nil)", func(t *testing.T) {
+					MustPanic(t, [...]string{
+						"fnPtr must be non-nil",
+						"fnPtr must be a pointer to a *func* variable",
+					}, func() {
+						sqlfunc.Any.Scan(v)
+					})
+				})
+			}
+		})
+		t.Run("Typed", func(t *testing.T) {
+			MustPanic(t, "fnPtr must be non-nil", func() {
+				sqlfunc.Scan((*func(*sql.Rows, int64) error)(nil))
+			})
+		})
+	})
 }
 
 func testForEach_oneColumn[T any](
