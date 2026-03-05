@@ -2,8 +2,14 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/dolmen-go/sqlfunc.svg)](https://pkg.go.dev/github.com/dolmen-go/sqlfunc)
 [![CI](https://github.com/dolmen-go/sqlfunc/actions/workflows/test.yml/badge.svg)](https://github.com/dolmen-go/sqlfunc/actions)
-[![Coverage](https://codecov.io/gh/dolmen-go/sqlfunc/branch/master/graph/badge.svg)](https://app.codecov.io/gh/dolmen-go/sqlfunc)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dolmen-go/sqlfunc)](https://goreportcard.com/report/github.com/dolmen-go/sqlfunc)
+
+<!--
+[![Coverage](https://codecov.io/gh/dolmen-go/sqlfunc/branch/master/graph/badge.svg)](https://app.codecov.io/gh/dolmen-go/sqlfunc)
+-->
+
 
 ## Demo
 
@@ -54,6 +60,27 @@ Check [code coverage by the testsuite](https://app.codecov.io/gh/dolmen-go/sqlfu
   progress** to add a code generator to reduce cost of runtime `reflect`.
   Check the [`experiment-gen`](https://github.com/dolmen-go/sqlfunc/commits/experiment-gen/)
   branch.
+
+### Quality reports
+
+See quality reports on [SonarQube](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc).
+
+[![SonarQube Cloud](https://sonarcloud.io/images/project_badges/sonarcloud-highlight.svg)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+
+
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=bugs)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
+
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=dolmen-go_sqlfunc&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=dolmen-go_sqlfunc)
 
 ## License
 
