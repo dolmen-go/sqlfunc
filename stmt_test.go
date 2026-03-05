@@ -492,6 +492,10 @@ func TestExecInvalidSignatures(t *testing.T) {
 		ResultIsPtr func(context.Context) (*sql.Result, error) `panic:"func must return (sql.Result, error)"`
 
 		NotTxPtr func(context.Context, sql.Tx) (sql.Result, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
+
+		VariadicInts1   func(context.Context, ...int64) (sql.Result, error) `panic:"func must not be variadic"`
+		VariadicInts2   func(context.Context, ...int64) error               `panic:"func must not be variadic"`
+		VariadicContext func(...context.Context) (sql.Result, error)        `panic:"func must not be variadic"`
 	}), func(fnPtr any) {
 		_, err := sqlfunc.Any.Exec(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
@@ -512,6 +516,10 @@ func TestQueryInvalidSignatures(t *testing.T) {
 		ResultRRE func(context.Context) (*sql.Rows, *sql.Rows, error) `panic:"func must return (*sql.Rows, error)"`
 
 		NotTxPtr func(context.Context, sql.Tx) (*sql.Rows, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
+
+		VariadicInts1   func(context.Context, ...int64) (*sql.Rows, error) `panic:"func must not be variadic"`
+		VariadicInts2   func(context.Context, ...int64) error              `panic:"func must not be variadic"`
+		VariadicContext func(...context.Context) (*sql.Rows, error)        `panic:"func must not be variadic"`
 	}), func(fnPtr any) {
 		_, err := sqlfunc.Any.Query(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
@@ -531,6 +539,10 @@ func TestQueryRowInvalidSignatures(t *testing.T) {
 		ReturnRowPlusErr func(context.Context) (*sql.Row, error) `panic:"func must return ONLY *sql.Row" todo:"should reject anything beyond row"`
 
 		NotTxPtr func(context.Context, sql.Tx) (*sql.Row, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
+
+		VariadicInts1   func(context.Context, ...int64) (*sql.Row, error) `panic:"func must not be variadic"`
+		VariadicInts2   func(context.Context, ...int64) error             `panic:"func must not be variadic"`
+		VariadicContext func(...context.Context) (*sql.Row, error)        `panic:"func must not be variadic"`
 	}), func(fnPtr any) {
 		_, err := sqlfunc.Any.QueryRow(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
