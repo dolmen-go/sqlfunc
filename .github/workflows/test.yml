@@ -70,11 +70,13 @@ jobs:
         run: go mod download
       - name: Run tests (JSON output, for SonarQube)
         # Powershell Core has problems with '=': -coverprofile=coverage.out
-        run: go test -json -coverprofile coverage.1.out -covermode atomic ./... >gotest.out
+        run: go test -json -coverprofile coverage.1.out -covermode atomic -coverpkg ./... ./... >gotest.out
       - name: Run tests (JSON output, for SonarQube)
-        run: go test -json -coverprofile coverage.2.out -covermode atomic -tags sqlfunc_registry_off ./... >>gotest.out
+        run: go test -json -coverprofile coverage.2.out -covermode atomic -coverpkg ./... -tags sqlfunc_registry_off ./... >>gotest.out
       - name: Merge coverage
-        run: cat coverage.?.out >coverage.out
+        run: |
+          cat coverage.?.out >coverage.out
+          rm coverage.?.out
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7
