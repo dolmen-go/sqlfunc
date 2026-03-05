@@ -457,6 +457,9 @@ func TestScanInvalidSignatures(t *testing.T) {
 		InPtrPtrPtr func(*sql.Rows, ***int64) error  `panic:"" todo:"should reject double pointer as input"`
 		OutPtrPtr   func(*sql.Rows) (**int64, error) `panic:"" todo:"should reject double pointer as output"`
 		OutPtrItf   func(*sql.Rows) (*any, error)    `panic:"" todo:"no check yet"`
+
+		VariadicInts func(*sql.Rows, ...int64) error `panic:"func must not be variadic"`
+		VariadicRows func(...*sql.Rows) error        `panic:"func must not be variadic"`
 	}), sqlfunc.Any.Scan)
 }
 

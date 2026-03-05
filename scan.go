@@ -47,6 +47,9 @@ func doScan(fnType reflect.Type, fnValue reflect.Value) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
+	if fnType.IsVariadic() {
+		panic("func must not be variadic")
+	}
 	numIn := fnType.NumIn()
 	if numIn < 1 || fnType.In(0) != typeRows {
 		panic("func first arg must be an *sql.Rows")
