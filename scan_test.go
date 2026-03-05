@@ -493,6 +493,42 @@ func TestScanInvalidSignatures(t *testing.T) {
 	})
 }
 
+func TestForEachInvalidSignatures(t *testing.T) {
+	t.Run("Any", func(t *testing.T) {
+		for _, v := range []any{
+			// nil, // obvious mistake => no need to implement a check
+			[0]int{},
+			(func(*int64) error)(nil),
+			(func() (int64, error))(nil),
+		} {
+			val := reflect.ValueOf(&v).Elem()
+			typ := val.Type()
+			if !val.IsNil() {
+				typ = val.Elem().Type()
+			}
+			t.Run(typ.String()+"(nil)", func(t *testing.T) {
+				MustPanic(t, [...]string{
+					"callback must be non-nil",
+					"callback must be a func",
+				}, func() {
+					sqlfunc.Any.ForEach(nil, v)
+				})
+			})
+		}
+	})
+	t.Run("Typed", func(t *testing.T) {
+		MustPanic(t, "callback must be a func", func() {
+			sqlfunc.ForEach(nil, 3)
+		})
+		MustPanic(t, "callback must be non-nil", func() {
+			sqlfunc.ForEach(nil, (func(*int64) error)(nil))
+		})
+		MustPanic(t, "callback must be non-nil", func() {
+			sqlfunc.ForEach(nil, (func() (int64, error))(nil))
+		})
+	})
+}
+
 func testForEach_oneColumn[T any](
 	t *testing.T,
 	db interface {
