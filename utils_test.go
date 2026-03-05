@@ -32,6 +32,30 @@ func CatchPanic(f func()) (p any) {
 	return
 }
 
+func MustPanic[T comparable](t testing.TB, expected T, f func()) bool {
+	switch got := CatchPanic(f); got {
+	case nil:
+		t.Errorf("Panic %q expected, got nothing!", any(expected))
+	case expected:
+		t.Logf("%T %[1]q", got)
+		return true
+	default:
+		v := reflect.ValueOf(expected)
+		// Slice or Array => one value must be equal
+		if v.Kind() == reflect.Array || v.Kind() == reflect.Slice {
+			gotV := reflect.ValueOf(got)
+			for i := range v.Len() {
+				if v.Index(i).Equal(gotV) {
+					t.Logf("%T %[1]q", got)
+					return true
+				}
+			}
+		}
+		t.Errorf("\nGot:      %T %[1]q\nExpected: %T %[2]q", got, any(expected))
+	}
+	return false
+}
+
 // CheckInvalidTargets runs "fn" with a pointer to each field of struct "tests".
 //
 // Each field is a test. The field name is the test name.
