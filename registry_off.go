@@ -27,6 +27,9 @@ func registryForEach(typ reflect.Type) any {
 	return nil
 }
 
+func registrySetScan(typ reflect.Type, f reflect.Value) {
+}
+
 func registryScan(typ reflect.Type) reflect.Value {
 	return reflect.Value{}
 }
