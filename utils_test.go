@@ -100,8 +100,8 @@ func CheckInvalidTargets(t *testing.T, tests any, fn func(any)) {
 			} else {
 				t.Logf("Panic (expected, but not specified): %q", p)
 			}
-			if _, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
-				t.Fatal("Not a TODO")
+			if todo, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
+				t.Fatalf("\033[1;32mTest pass, but marked as TODO \033[1;34m%q\033[m", todo)
 			}
 		})
 	}
