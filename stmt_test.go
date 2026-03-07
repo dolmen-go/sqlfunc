@@ -636,3 +636,175 @@ func TestQueryRowInvalidSignatures(t *testing.T) {
 		})
 	})
 }
+
+func TestStmt(t *testing.T) {
+	check := func(msg string, err error) {
+		if err != nil {
+			log.Fatalf("%s: %v", msg, err)
+		}
+	}
+	checkDeferred := func(msg string, f func() error) { check(msg, f()) }
+
+	db, err := sql.Open(sqliteDriver, "file:testdata/poi.db?mode=ro&immutable=1")
+	check("Open", err)
+	defer checkDeferred("db.Close", db.Close)
+
+	t.Run("Query", func(t *testing.T) {
+		const nbRuns = 10
+
+		const query = `SELECT name FROM poi ORDER BY name`
+		type queryFunc func(ctx context.Context) (*sql.Rows, error)
+
+		t.Run("Manual", func(t *testing.T) {
+			start := time.Now()
+			stmt, err := db.PrepareContext(t.Context(), query)
+			t.Log("db.Prepare time:", time.Since(start))
+			check("Prepare", err)
+			defer checkDeferred("closeStmt", stmt.Close)
+
+			for i := range nbRuns {
+				_ = i
+				func() error {
+					start := time.Now()
+					rows, err := stmt.QueryContext(t.Context())
+					t.Log("stmt.QueryContext time:", time.Since(start))
+					check("Query", err)
+					defer checkDeferred("Query Close", rows.Close)
+					for rows.Next() {
+						var name string
+						if err := rows.Scan(&name); err != nil {
+							return err
+						}
+					}
+					return nil
+				}()
+			}
+
+		})
+
+		runQuery := func(t *testing.T) {
+			var queryNames queryFunc
+			start := time.Now()
+			closeQueryNames, err := sqlfunc.Query(
+				t.Context(), db,
+				query,
+				&queryNames,
+			)
+			t.Log("sqlfunc.Query time:", time.Since(start))
+
+			check("Prepare queryNames", err)
+			defer checkDeferred("closeQueryNames", closeQueryNames)
+
+			for i := range nbRuns {
+				_ = i
+				func() error {
+					start := time.Now()
+					rows, err := queryNames(t.Context())
+					t.Log("queryNames time:", time.Since(start))
+					check("queryNames", err)
+					defer checkDeferred("queryNames Close", rows.Close)
+					for rows.Next() {
+						var name string
+						if err := rows.Scan(&name); err != nil {
+							return err
+						}
+					}
+					return rows.Err()
+				}()
+			}
+		}
+
+		t.Run("First", runQuery)
+		t.Run("Second", runQuery)
+
+	})
+
+	t.Run("QueryRow", func(t *testing.T) {
+		const nbRuns = 10
+		const query = `SELECT name FROM poi WHERE name = ?`
+		type queryRowFunc func(ctx context.Context, name string) (string, error)
+
+		t.Run("Manual", func(t *testing.T) {
+			start := time.Now()
+			stmt, err := db.PrepareContext(t.Context(), query)
+			t.Log("db.Prepare time:", time.Since(start))
+			check("Prepare", err)
+			defer checkDeferred("closeStmt", stmt.Close)
+
+			for range nbRuns {
+				var name string
+				start := time.Now()
+				err := stmt.QueryRowContext(t.Context(), "Château de Versailles").Scan(&name)
+				t.Log("stmt.QueryRowContext time:", time.Since(start))
+				check("QueryRow", err)
+			}
+		})
+
+		runQueryRow := func(t *testing.T) {
+			var queryName queryRowFunc
+			start := time.Now()
+			closeQueryName, err := sqlfunc.QueryRow(t.Context(), db, query, &queryName)
+			t.Log("sqlfunc.QueryRow time:", time.Since(start))
+			check("Prepare queryName", err)
+			defer checkDeferred("closeQueryName", closeQueryName)
+
+			for range nbRuns {
+				start := time.Now()
+				_, err := queryName(t.Context(), "Château de Versailles")
+				t.Log("queryName time:", time.Since(start))
+				check("queryName", err)
+			}
+		}
+
+		t.Run("First", runQueryRow)
+		t.Run("Second", runQueryRow)
+	})
+
+	t.Run("Exec", func(t *testing.T) {
+		db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
+		check("Open", err)
+		defer checkDeferred("db.Close", db.Close)
+
+		_, err = db.ExecContext(t.Context(), `CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)`)
+		check("Create table", err)
+
+		const nbRuns = 10
+		const query = `INSERT INTO test (name) VALUES (?)`
+		type execFunc func(ctx context.Context, name string) (sql.Result, error)
+
+		t.Run("Manual", func(t *testing.T) {
+			start := time.Now()
+			stmt, err := db.PrepareContext(t.Context(), query)
+			t.Log("db.Prepare time:", time.Since(start))
+			check("Prepare", err)
+			defer checkDeferred("closeStmt", stmt.Close)
+
+			for range nbRuns {
+				start := time.Now()
+				_, err := stmt.ExecContext(t.Context(), "test")
+				t.Log("stmt.ExecContext time:", time.Since(start))
+				check("Exec", err)
+			}
+		})
+
+		runExec := func(t *testing.T) {
+			var insert execFunc
+			start := time.Now()
+			closeInsert, err := sqlfunc.Exec(t.Context(), db, query, &insert)
+			t.Log("sqlfunc.Exec time:", time.Since(start))
+			check("Prepare insert", err)
+			defer checkDeferred("closeInsert", closeInsert)
+
+			for range nbRuns {
+				start := time.Now()
+				_, err := insert(t.Context(), "test")
+				t.Log("insert time:", time.Since(start))
+				check("insert", err)
+			}
+		}
+
+		t.Run("First", runExec)
+		t.Run("Second", runExec)
+	})
+
+}
