@@ -107,7 +107,7 @@ func makeStmtFunc(
 	setFn := registryStmt(fnType)
 	if setFn == nil {
 		setFn = makeFn(fnType)
-		// go registry.Stmt.Register(fnType, setFn)
+		registrySetStmt(fnType, setFn)
 	}
 
 	stmt, err := db.PrepareContext(ctx, query)

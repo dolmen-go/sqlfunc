@@ -37,6 +37,9 @@ func registryScan(typ reflect.Type) reflect.Value {
 	return reflect.Value{}
 }
 
+func registrySetStmt(typ reflect.Type, f func(*sql.Stmt, any)) {
+}
+
 func registryStmt(typ reflect.Type) func(*sql.Stmt, any) {
 	return nil
 }

@@ -43,6 +43,11 @@ func registryScan(typ reflect.Type) reflect.Value {
 	return registry.Scan.Get(typ)
 }
 
+func registrySetStmt(typ reflect.Type, f func(*sql.Stmt, any)) {
+	// Register synchronously
+	registry.Stmt.Register(typ, f)
+}
+
 func registryStmt(typ reflect.Type) func(*sql.Stmt, any) {
 	return registry.Stmt.Get(typ)
 }
