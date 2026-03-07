@@ -17,6 +17,7 @@ limitations under the License.
 package registry
 
 import (
+	"database/sql"
 	"reflect"
 )
 
@@ -35,7 +36,7 @@ type (
 	FuncForEach = any
 	FuncScan    = reflect.Value
 
-	FuncStmt     = any // Exec, QueryRow, Query: func(*sql.Stmt, any) or func[Func](*sql.Stmt, *Func)
+	FuncStmt     = func(*sql.Stmt, any)
 	FuncExec     = FuncStmt
 	FuncQueryRow = FuncStmt
 	FuncQuery    = FuncStmt

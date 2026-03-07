@@ -20,8 +20,6 @@ import (
 	"context"
 	"database/sql"
 	"reflect"
-
-	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
 var _ *sql.DB // Fake var just to have database/sql imported for go doc
@@ -44,44 +42,8 @@ func makeStmtFuncTyped[Func any](
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
-	fnType := reflect.TypeFor[Func]()
-	if fnType.Kind() != reflect.Func {
-		panic("fnPtr must be a pointer to a *func* variable")
-	}
-	if fnType.NumIn() < 1 || fnType.In(0) != typeContext {
-		panic("func first arg must be a context.Context")
-	}
 
-	checkSignature(fnType)
-
-	// setFn := registry.Stmt.Get(reflect.TypeFor[Func]())
-	setFn := registryStmt(reflect.TypeFor[Func]())
-
-	switch setFn := setFn.(type) {
-	case func(*sql.Stmt, *Func):
-		stmt, err := db.PrepareContext(ctx, query)
-		if err != nil {
-			return func() (_ error) { return }, err
-		}
-
-		setFn(stmt, fnPtr)
-		return stmt.Close, nil
-
-	case func(*sql.Stmt, any):
-		stmt, err := db.PrepareContext(ctx, query)
-		if err != nil {
-			return func() (_ error) { return }, err
-		}
-
-		setFn(stmt, fnPtr)
-		return stmt.Close, nil
-
-	case nil:
-		return setStmtAny(ctx, db, query, fnPtr, fnType, makeFn)
-
-	default:
-		panic(fnType.String() + " not handled")
-	}
+	return makeStmtFunc(ctx, db, query, fnPtr, reflect.TypeFor[Func](), checkSignature, makeFn)
 }
 
 // makeStmtFuncAny is the common logic of wrappers of prepared statements ([Any.Exec], [Any.QueryRow] and [Any.Query]).
@@ -110,6 +72,22 @@ func makeStmtFuncAny(
 	}
 
 	fnType := fnPtrValue.Type().Elem()
+
+	return makeStmtFunc(ctx, db, query, fnPtr, fnType, checkSignature, makeFn)
+}
+
+func makeStmtFunc(
+	ctx context.Context,
+	db PrepareConn,
+	query string,
+	fnPtr any,
+	fnType reflect.Type,
+	checkSignature func(reflect.Type),
+	makeFn func(reflect.Type) func(*sql.Stmt, any),
+) (
+	func() error,
+	error,
+) {
 	if fnType.Kind() != reflect.Func {
 		panic("fnPtr must be a pointer to a *func* variable")
 	}
@@ -126,48 +104,11 @@ func makeStmtFuncAny(
 	// out of the paths where we found an entry in the registry.
 	checkSignature(fnType)
 
-	setFn := registry.Stmt.Get(fnType)
-
-	switch setFn := setFn.(type) {
-
-	case func(*sql.Stmt, any):
-		stmt, err := db.PrepareContext(ctx, query)
-		if err != nil {
-			return func() (_ error) { return }, err
-		}
-
-		setFn(stmt, fnPtr)
-		return stmt.Close, nil
-
-	case nil:
-		return setStmtAny(ctx, db, query, fnPtr, fnType, makeFn)
-
-	default: // func(*sql.Stmt, *Func)
-
-		stmt, err := db.PrepareContext(ctx, query)
-		if err != nil {
-			return func() (_ error) { return }, err
-		}
-
-		// like setFn(stmt, fnPtr)
-		_ = reflect.ValueOf(setFn).Call([]reflect.Value{reflect.ValueOf(stmt), reflect.ValueOf(fnPtr)})
-		return stmt.Close, nil
+	setFn := registryStmt(fnType)
+	if setFn == nil {
+		setFn = makeFn(fnType)
+		// go registry.Stmt.Register(fnType, setFn)
 	}
-}
-
-func setStmtAny(
-	ctx context.Context,
-	db PrepareConn,
-	query string,
-	fnPtr any,
-	fnType reflect.Type,
-	makeFn func(reflect.Type) func(*sql.Stmt, any),
-) (
-	func() error,
-	error,
-) {
-	setFn := makeFn(fnType)
-	// go registry.Stmt.Register(fnType, setFn)
 
 	stmt, err := db.PrepareContext(ctx, query)
 	if err != nil {

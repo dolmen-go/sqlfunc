@@ -19,6 +19,7 @@ limitations under the License.
 package sqlfunc
 
 import (
+	"database/sql"
 	"reflect"
 )
 
@@ -36,6 +37,6 @@ func registryScan(typ reflect.Type) reflect.Value {
 	return reflect.Value{}
 }
 
-func registryStmt(typ reflect.Type) any {
+func registryStmt(typ reflect.Type) func(*sql.Stmt, any) {
 	return nil
 }
