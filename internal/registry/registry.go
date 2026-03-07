@@ -17,7 +17,6 @@ limitations under the License.
 package registry
 
 import (
-	"database/sql"
 	"reflect"
 )
 
@@ -25,7 +24,10 @@ var (
 	ForEach registryOf[FuncForEach]
 	Scan    registryOf[FuncScan]
 	// Stmt is the shared registry for Exec, QueryRow, Query.
-	// This is possible because the shapes of the return types never overlap.
+	// This is possible because the shapes of the return types never overlap:
+	// - Exec: returns (sql.Result, error) or (error)
+	// - Query: returns (*sql.Rows, error)
+	// - QueryRow: returns (*sql.Row) or (values..., error)
 	Stmt registryOf[FuncStmt]
 )
 
@@ -33,7 +35,7 @@ type (
 	FuncForEach = any
 	FuncScan    = reflect.Value
 
-	FuncStmt     = func(stmt *sql.Stmt) reflect.Value // Exec, QueryRow, Query
+	FuncStmt     = any // Exec, QueryRow, Query: func(*sql.Stmt, any) or func[Func](*sql.Stmt, *Func)
 	FuncExec     = FuncStmt
 	FuncQueryRow = FuncStmt
 	FuncQuery    = FuncStmt

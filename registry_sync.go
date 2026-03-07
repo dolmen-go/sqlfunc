@@ -19,7 +19,6 @@ limitations under the License.
 package sqlfunc
 
 import (
-	"database/sql"
 	"reflect"
 
 	"github.com/dolmen-go/sqlfunc/internal/registry"
@@ -43,14 +42,6 @@ func registryScan(typ reflect.Type) reflect.Value {
 	return registry.Scan.Get(typ)
 }
 
-func registryExec(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return registry.Stmt.Get(typ)
-}
-
-func registryQueryRow(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return registry.Stmt.Get(typ)
-}
-
-func registryQuery(typ reflect.Type) func(*sql.Stmt) reflect.Value {
+func registryStmt(typ reflect.Type) any {
 	return registry.Stmt.Get(typ)
 }
