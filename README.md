@@ -10,27 +10,55 @@
 [![Coverage](https://codecov.io/gh/dolmen-go/sqlfunc/branch/master/graph/badge.svg)](https://app.codecov.io/gh/dolmen-go/sqlfunc)
 -->
 
+`sqlfunc` is a Go library that simplifies the use of `database/sql` by binding SQL queries directly to strongly-typed Go functions. By leveraging Go generics and reflection, it provides an idiomatic and type-safe API that reduces boilerplate and minimizes common errors like incorrect column scanning or argument count mismatches.
 
-## Demo
+### Key Features
+
+- **Strongly-Typed Query Binding**: Bind `INSERT`, `UPDATE`, `DELETE`, and `SELECT` statements directly to Go function variables. The function signature defines the SQL parameters and the expected result types.
+- **[`Exec`](https://pkg.go.dev/github.com/dolmen-go/sqlfunc#Exec), [`QueryRow`](https://pkg.go.dev/github.com/dolmen-go/sqlfunc#QueryRow), and [`Query`](https://pkg.go.dev/github.com/dolmen-go/sqlfunc#Query)**: Dedicated functions for different SQL operations, ensuring that the bound functions return the appropriate results (`sql.Result`, individual columns, or `*sql.Rows`).
+- **[`ForEach`](https://pkg.go.dev/github.com/dolmen-go/sqlfunc#ForEach) Iteration**: A high-level helper for iterating over `*sql.Rows` that automatically scans columns into the arguments of a provided callback function.
+- **Flexible [`Scan`](https://pkg.go.dev/github.com/dolmen-go/sqlfunc#Scan) Functions**: Generate reusable functions to scan a single row into pointers or return values, improving readability and reuse.
+- **Transaction Support**: Generated functions can optionally accept a `*sql.Tx` as an argument, allowing them to participate seamlessly in transactions.
+- **`Any` API**: Provides a more flexible, reflection-heavy API for use cases where function signatures are determined at runtime.
+- **Performance-Oriented Registry**: Includes a registry system to cache reflective implementations, designed with future code generation in mind to achieve performance comparable to manual `database/sql` code.
+
+### Example: Binding a Query to a Function
 
 ```go
-var queryPersonsByZip func(ctx context.Context, zipCode string) (*sql.Rows, error)
+import (
+    "context"
+    "database/sql"
+    "github.com/dolmen-go/sqlfunc"
+)
 
-close, _ = sqlfunc.Query(db, ``+
-  `SELECT name, age `+
-  `FROM person `+
-  `WHERE zipcode = ?`,
-  &queryPersonsByZip)
-defer close()
+// Define a function variable with the desired signature
+var getPOI func(ctx context.Context, name string) (lat float64, lon float64, err error)
 
-rows, _ = queryPersonsByZip(ctx, "10017")
+// Bind the SQL query to the function variable
+closeStmt, err := sqlfunc.QueryRow(ctx, db,
+    "SELECT lat, lon FROM poi WHERE name = ?",
+    &getPOI,
+)
+if err != nil {
+    // handle error
+}
+defer closeStmt()
 
-_ = sqlfunc.ForEach(rows, func(name string, age int) {
-    fmt.Printf("Name: %s, Age: %d\n", name, age)
-})
+// Execute the query using the strongly-typed function
+lat, lon, err := getPOI(ctx, "Château de Versailles")
 ```
 
-Note: error handling is replaced with `_` for this demo.
+### Example: Using `ForEach` for Iteration
+
+```go
+rows, err := db.QueryContext(ctx, "SELECT name, lat, lon FROM poi")
+if err != nil { /* ... */ }
+
+// Scan rows directly into callback arguments
+err = sqlfunc.ForEach(rows, func(name string, lat, lon float64) {
+    fmt.Printf("%s: %.4f, %.4f\n", name, lat, lon)
+})
+```
 
 ## Documentation
 
