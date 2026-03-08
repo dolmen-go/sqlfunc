@@ -480,7 +480,9 @@ func TestExecInvalidSignatures(t *testing.T) {
 	CheckInvalidTargets(t, new(struct {
 		Any         any                                                   `panic:"fnPtr must be a pointer to a *func* variable"`
 		Int         int                                                   `panic:"fnPtr must be a pointer to a *func* variable"`
-		NoContext   func()                                                `panic:"func first arg must be a context.Context"`
+		NoArg       func()                                                `panic:"func first arg must be a context.Context"`
+		NoContext   func() (sql.Result, error)                            `panic:"func first arg must be a context.Context"`
+		NoContext2  func(int64) (sql.Result, error)                       `panic:"func first arg must be a context.Context"`
 		NoError     func(context.Context)                                 `panic:"func must return (sql.Result, error)"`
 		NoResult    func(context.Context) error                           `panic:"func must return (sql.Result, error)"`
 		NotResultIE func(context.Context) (int64, error)                  `panic:"func must return (sql.Result, error)"`
@@ -494,9 +496,9 @@ func TestExecInvalidSignatures(t *testing.T) {
 
 		NotTxPtr func(context.Context, sql.Tx) (sql.Result, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
 
-		VariadicInts1   func(context.Context, ...int64) (sql.Result, error) `panic:"func must not be variadic"`
-		VariadicInts2   func(context.Context, ...int64) error               `panic:"func must not be variadic"`
-		VariadicContext func(...context.Context) (sql.Result, error)        `panic:"func must not be variadic"`
+		VariadicInts1   func(context.Context, ...int64) (sql.Result, error)         `panic:"func must not be variadic"`
+		VariadicInts2   func(context.Context, string, ...int64) (sql.Result, error) `panic:"func must not be variadic"`
+		VariadicContext func(...context.Context) (sql.Result, error)                `panic:"func first arg must be a context.Context"`
 	}), func(fnPtr any) {
 		_, err := sqlfunc.Any.Exec(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
@@ -534,22 +536,24 @@ func TestExecInvalidSignatures(t *testing.T) {
 
 func TestQueryInvalidSignatures(t *testing.T) {
 	CheckInvalidTargets(t, new(struct {
-		Any       any                                                 `panic:"fnPtr must be a pointer to a *func* variable"`
-		Int       int                                                 `panic:"fnPtr must be a pointer to a *func* variable"`
-		NoContext func()                                              `panic:"func first arg must be a context.Context"`
-		NoError   func(context.Context)                               `panic:"func must return (*sql.Rows, error)"`
-		NotRowsIE func(context.Context) (int64, error)                `panic:"func must return (*sql.Rows, error)"`
-		NotRowsEE func(context.Context) (error, error)                `panic:"func must return (*sql.Rows, error)"`
-		NotRowsRI func(context.Context) (*sql.Rows, int)              `panic:"func must return (*sql.Rows, error)"`
-		NotError  func(context.Context) (*sql.Rows, *sql.Rows)        `panic:"func must return (*sql.Rows, error)"`
-		ResultREE func(context.Context) (*sql.Rows, error, error)     `panic:"func must return (*sql.Rows, error)"`
-		ResultRRE func(context.Context) (*sql.Rows, *sql.Rows, error) `panic:"func must return (*sql.Rows, error)"`
+		Any         any                                                 `panic:"fnPtr must be a pointer to a *func* variable"`
+		Int         int                                                 `panic:"fnPtr must be a pointer to a *func* variable"`
+		NoArg       func()                                              `panic:"func first arg must be a context.Context"`
+		NotContext  func() (*sql.Rows, error)                           `panic:"func first arg must be a context.Context"`
+		NotContext2 func(int64) (*sql.Rows, error)                      `panic:"func first arg must be a context.Context"`
+		NoError     func(context.Context)                               `panic:"func must return (*sql.Rows, error)"`
+		NotRowsIE   func(context.Context) (int64, error)                `panic:"func must return (*sql.Rows, error)"`
+		NotRowsEE   func(context.Context) (error, error)                `panic:"func must return (*sql.Rows, error)"`
+		NotRowsRI   func(context.Context) (*sql.Rows, int)              `panic:"func must return (*sql.Rows, error)"`
+		NotError    func(context.Context) (*sql.Rows, *sql.Rows)        `panic:"func must return (*sql.Rows, error)"`
+		ResultREE   func(context.Context) (*sql.Rows, error, error)     `panic:"func must return (*sql.Rows, error)"`
+		ResultRRE   func(context.Context) (*sql.Rows, *sql.Rows, error) `panic:"func must return (*sql.Rows, error)"`
 
 		NotTxPtr func(context.Context, sql.Tx) (*sql.Rows, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
 
-		VariadicInts1   func(context.Context, ...int64) (*sql.Rows, error) `panic:"func must not be variadic"`
-		VariadicInts2   func(context.Context, ...int64) error              `panic:"func must not be variadic"`
-		VariadicContext func(...context.Context) (*sql.Rows, error)        `panic:"func must not be variadic"`
+		VariadicInts1   func(context.Context, ...int64) (*sql.Rows, error)         `panic:"func must not be variadic"`
+		VariadicInts2   func(context.Context, string, ...int64) (*sql.Rows, error) `panic:"func must not be variadic"`
+		VariadicContext func(...context.Context) (*sql.Rows, error)                `panic:"func first arg must be a context.Context"`
 	}), func(fnPtr any) {
 		_, err := sqlfunc.Any.Query(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
@@ -589,19 +593,25 @@ func TestQueryRowInvalidSignatures(t *testing.T) {
 	CheckInvalidTargets(t, new(struct {
 		Any              any                                     `panic:"fnPtr must be a pointer to a *func* variable"`
 		Int              int                                     `panic:"fnPtr must be a pointer to a *func* variable"`
-		NoContext        func()                                  `panic:"func first arg must be a context.Context"`
-		NoError          func(context.Context)                   `panic:"func must return at least one column"`
+		NoArg            func()                                  `panic:"func first arg must be a context.Context"`
+		NoContext1       func() (int64, error)                   `panic:"func first arg must be a context.Context"`
+		NoContext2       func(int64) (int64, error)              `panic:"func first arg must be a context.Context"`
+		NoError          func(context.Context)                   `panic:"func must return either (*sql.Row) or (values..., error)"`
 		NoResult         func(context.Context) error             `panic:"func must return at least one column"`
 		NoErrorI         func(context.Context) int64             `panic:"func must return an error" todo:"should return an error"`
 		NoErrorII        func(context.Context) (int64, int64)    `panic:"func must return an error"`
 		ReturnPtrPtr     func(context.Context) (**int64, error)  `panic:"func must not return double pointer" todo:"should reject double pointer"`
-		ReturnRowPlusErr func(context.Context) (*sql.Row, error) `panic:"func must return ONLY *sql.Row" todo:"should reject anything beyond row"`
+		ReturnRowPlusErr func(context.Context) (*sql.Row, error) `panic:"func must return ONLY *sql.Row"`
+
+		// Signature must not overlap with Exec's or Query's signatures
+		LikeExec  func(context.Context) (sql.Result, error) `panic:"func must return either (*sql.Row) or (values..., error)"`
+		LikeQuery func(context.Context) (*sql.Rows, error)  `panic:"func must return either (*sql.Row) or (values..., error)"`
 
 		NotTxPtr func(context.Context, sql.Tx) (*sql.Row, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
 
-		VariadicInts1   func(context.Context, ...int64) (*sql.Row, error) `panic:"func must not be variadic"`
-		VariadicInts2   func(context.Context, ...int64) error             `panic:"func must not be variadic"`
-		VariadicContext func(...context.Context) (*sql.Row, error)        `panic:"func must not be variadic"`
+		VariadicInts1   func(context.Context, ...int64) (int64, error)         `panic:"func must not be variadic"`
+		VariadicInts2   func(context.Context, string, ...int64) (int64, error) `panic:"func must not be variadic"`
+		VariadicContext func(...context.Context) (int64, error)                `panic:"func first arg must be a context.Context"`
 	}), func(fnPtr any) {
 		_, err := sqlfunc.Any.QueryRow(context.Background(), panicConn("signature validation failure"), "SELECT 1", fnPtr)
 		panic(err)
