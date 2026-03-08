@@ -26,7 +26,8 @@ import (
 )
 
 func registrySetForEach(typ reflect.Type, f any) {
-	registry.ForEach.Register(typ, f)
+	// Register asynchronously
+	go registry.ForEach.Register(typ, f)
 }
 
 func registryForEach(typ reflect.Type) any {
@@ -34,7 +35,8 @@ func registryForEach(typ reflect.Type) any {
 }
 
 func registrySetScan(typ reflect.Type, f reflect.Value) {
-	registry.Scan.Register(typ, f)
+	// Register asynchronously
+	go registry.Scan.Register(typ, f)
 }
 
 func registryScan(typ reflect.Type) reflect.Value {

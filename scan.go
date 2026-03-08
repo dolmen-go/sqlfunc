@@ -163,8 +163,7 @@ func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn any) error {
 		panic("callback may only return an error or a bool")
 	}
 
-	// Register in the background
-	go registrySetForEach(fnType, build)
+	registrySetForEach(fnType, build)
 
 	return runForEach(rows, build(fn))
 }
