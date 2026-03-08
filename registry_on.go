@@ -1,4 +1,4 @@
-//go:build sqlfunc_registry_on || !sqlfunc_registry_off
+//go:build sqlfunc_registry_on || (!sqlfunc_registry_off && !sqlfunc_registry_sync)
 
 /*
 Copyright 2026 Olivier Mengué

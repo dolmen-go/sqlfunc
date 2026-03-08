@@ -1,4 +1,4 @@
-//go:build sqlfunc_registry_off && !sqlfunc_registry_on && !sqlfunc_registry_sync
+//go:build sqlfunc_registry_sync
 
 /*
 Copyright 2026 Olivier Mengué
@@ -21,30 +21,36 @@ package sqlfunc
 import (
 	"database/sql"
 	"reflect"
+
+	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
 func registrySetForEach(typ reflect.Type, f any) {
+	// Register synchronously
+	registry.ForEach.Register(typ, f)
 }
 
 func registryForEach(typ reflect.Type) any {
-	return nil
+	return registry.ForEach.Get(typ)
 }
 
 func registrySetScan(typ reflect.Type, f reflect.Value) {
+	// Register synchronously
+	registry.Scan.Register(typ, f)
 }
 
 func registryScan(typ reflect.Type) reflect.Value {
-	return reflect.Value{}
+	return registry.Scan.Get(typ)
 }
 
 func registryExec(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return nil
+	return registry.Stmt.Get(typ)
 }
 
 func registryQueryRow(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return nil
+	return registry.Stmt.Get(typ)
 }
 
 func registryQuery(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return nil
+	return registry.Stmt.Get(typ)
 }
