@@ -113,8 +113,19 @@ func Generate(t testing.TB, patterns ...string) {
 				case "ForEach":
 					// Function expected:
 					// - literal
-					// - identifier pointing to a func type
-					if err := gen.add("ForEach", ti.TypeOf(arg).(*types.Signature), (*Generator).genForEach); err != nil {
+					// - identifier pointing to a func variable
+					// - identifier pointing to an interface{} variable, if calling sqlfunc.Any.ForEach
+					sig, isSig := ti.TypeOf(arg).(*types.Signature)
+					if !isSig {
+						t.Logf("%s %s.%s SKIP (arg 1 is not a func but %s)",
+							pkg.Fset.Position(c.Pos()),
+							path,
+							s.Sel.Name,
+							ti.TypeOf(arg).String(),
+						)
+						return
+					}
+					if err := gen.add("ForEach", sig, (*Generator).genForEach); err != nil {
 						t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
 					}
 
