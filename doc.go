@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sqlfunc provides utilities to wrap SQL prepared statements with strongly typed Go functions.
+// Package sqlfunc provides utilities to bind SQL statements to strongly-typed Go functions.
 //
-// You just have to define the function signature you need:
+// You just have to define the function signature you need as a variable:
 //
 //	var whoami func(context.Context) (string, error)
 //
-// and the SQL statement that this function wraps:
+// and bind it to an SQL statement:
 //
 //	close, err := sqlfunc.QueryRow(ctx, db, `SELECT USER()`, &whoami)  // MySQL example
 //	defer close()
@@ -32,8 +32,11 @@ limitations under the License.
 //
 // # Build tags
 //
-//   - sqlfunc_registry_on (default): internal cache is enabled.
-//   - sqlfunc_registry_off: internal cache is disabled.
+//   - sqlfunc_registry_on (default): internal cache of bindings is enabled.
+//   - sqlfunc_registry_off: internal cache of bindings is disabled.
+//   - sqlfunc_registry_sync: internal cache of bindings is enabled, with
+//     new bindings being registered synchronously (instead of in the background).
+//     Only useful for reliable benchmarks.
 //
 // Note: the registry will have its maximum impact when the sqlfunc-gen tool will
 // be available. Check the [experiment-gen] branch for progress.
