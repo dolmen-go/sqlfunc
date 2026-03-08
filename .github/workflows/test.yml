@@ -26,6 +26,8 @@ jobs:
         run: go test -v -race ./...
       - name: Run tests (sqlfunc_registry_off)
         run: go test -v -race -tags sqlfunc_registry_off ./...
+      - name: Run tests (sqlfunc_registry_sync)
+        run: go test -v -race -tags sqlfunc_registry_sync ./...
 
 
   test-others:
@@ -71,8 +73,10 @@ jobs:
       - name: Run tests (JSON output, for SonarQube)
         # Powershell Core has problems with '=': -coverprofile=coverage.out
         run: go test -json -coverprofile coverage.1.out -covermode atomic -coverpkg ./... ./... >gotest.out
-      - name: Run tests (JSON output, for SonarQube)
+      - name: Run tests (JSON output, for SonarQube) (sqlfunc_registry_off)
         run: go test -json -coverprofile coverage.2.out -covermode atomic -coverpkg ./... -tags sqlfunc_registry_off ./... >>gotest.out
+      - name: Run tests (JSON output, for SonarQube) (sqlfunc_registry_sync)
+        run: go test -json -coverprofile coverage.3.out -covermode atomic -coverpkg ./... -tags sqlfunc_registry_sync ./... >>gotest.out
       - name: Merge coverage
         run: |
           cat coverage.?.out >coverage.out
