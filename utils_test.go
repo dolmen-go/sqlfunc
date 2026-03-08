@@ -134,8 +134,11 @@ type testingTAsB struct {
 
 func (t *testingTAsB) Loop() bool {
 	// Just run once
-	defer func() { t.loopDone = true }()
-	return !t.loopDone
+	if t.loopDone {
+		return false
+	}
+	t.loopDone = true
+	return true
 }
 
 func (t testingTAsB) ReportAllocs() {
