@@ -20,8 +20,6 @@ import (
 	"database/sql"
 	"fmt"
 	"reflect"
-
-	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
 // Scan allows to define a function that will scan one row from an [*sql.Rows].
@@ -166,7 +164,7 @@ func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn any) error {
 	}
 
 	// Register in the background
-	go registry.ForEach.Register(fnType, build)
+	go registrySetForEach(fnType, build)
 
 	return runForEach(rows, build(fn))
 }

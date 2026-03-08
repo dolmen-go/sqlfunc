@@ -23,6 +23,9 @@ import (
 	"reflect"
 )
 
+func registrySetForEach(typ reflect.Type, f any) {
+}
+
 func registryForEach(typ reflect.Type) any {
 	return nil
 }

@@ -25,6 +25,10 @@ import (
 	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
+func registrySetForEach(typ reflect.Type, f any) {
+	registry.ForEach.Register(typ, f)
+}
+
 func registryForEach(typ reflect.Type) any {
 	return registry.ForEach.Get(typ)
 }
