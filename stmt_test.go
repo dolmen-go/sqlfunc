@@ -638,6 +638,14 @@ func TestQueryRowInvalidSignatures(t *testing.T) {
 }
 
 func TestStmt(t *testing.T) {
+	benchStmt(TestingTAsB(t))
+}
+
+func BenchmarkStmt(b *testing.B) {
+	benchStmt(TestingBAsB(b))
+}
+
+func benchStmt(b TestingB) {
 	check := func(msg string, err error) {
 		if err != nil {
 			log.Fatalf("%s: %v", msg, err)
@@ -649,25 +657,21 @@ func TestStmt(t *testing.T) {
 	check("Open", err)
 	defer checkDeferred("db.Close", db.Close)
 
-	t.Run("Query", func(t *testing.T) {
-		const nbRuns = 10
-
+	b.Run("Query", func(b TestingB) {
 		const query = `SELECT name FROM poi ORDER BY name`
 		type queryFunc func(ctx context.Context) (*sql.Rows, error)
 
-		t.Run("Manual", func(t *testing.T) {
+		b.Run("Manual", func(b TestingB) {
 			start := time.Now()
-			stmt, err := db.PrepareContext(t.Context(), query)
-			t.Log("db.Prepare time:", time.Since(start))
+			stmt, err := db.PrepareContext(b.Context(), query)
+			b.Log("db.Prepare time:", time.Since(start))
 			check("Prepare", err)
 			defer checkDeferred("closeStmt", stmt.Close)
 
-			for i := range nbRuns {
-				_ = i
+			b.ResetTimer()
+			for b.Loop() {
 				func() error {
-					start := time.Now()
-					rows, err := stmt.QueryContext(t.Context())
-					t.Log("stmt.QueryContext time:", time.Since(start))
+					rows, err := stmt.QueryContext(b.Context())
 					check("Query", err)
 					defer checkDeferred("Query Close", rows.Close)
 					for rows.Next() {
@@ -682,25 +686,23 @@ func TestStmt(t *testing.T) {
 
 		})
 
-		runQuery := func(t *testing.T) {
+		runQuery := func(b TestingB) {
 			var queryNames queryFunc
 			start := time.Now()
 			closeQueryNames, err := sqlfunc.Query(
-				t.Context(), db,
+				b.Context(), db,
 				query,
 				&queryNames,
 			)
-			t.Log("sqlfunc.Query time:", time.Since(start))
+			b.Log("sqlfunc.Query time:", time.Since(start))
 
 			check("Prepare queryNames", err)
 			defer checkDeferred("closeQueryNames", closeQueryNames)
 
-			for i := range nbRuns {
-				_ = i
+			b.ResetTimer()
+			for b.Loop() {
 				func() error {
-					start := time.Now()
-					rows, err := queryNames(t.Context())
-					t.Log("queryNames time:", time.Since(start))
+					rows, err := queryNames(b.Context())
 					check("queryNames", err)
 					defer checkDeferred("queryNames Close", rows.Close)
 					for rows.Next() {
@@ -714,97 +716,91 @@ func TestStmt(t *testing.T) {
 			}
 		}
 
-		t.Run("First", runQuery)
-		t.Run("Second", runQuery)
+		b.Run("First", runQuery)
+		b.Run("Second", runQuery)
 
 	})
 
-	t.Run("QueryRow", func(t *testing.T) {
-		const nbRuns = 10
+	b.Run("QueryRow", func(b TestingB) {
 		const query = `SELECT name FROM poi WHERE name = ?`
 		type queryRowFunc func(ctx context.Context, name string) (string, error)
 
-		t.Run("Manual", func(t *testing.T) {
+		b.Run("Manual", func(b TestingB) {
 			start := time.Now()
-			stmt, err := db.PrepareContext(t.Context(), query)
-			t.Log("db.Prepare time:", time.Since(start))
+			stmt, err := db.PrepareContext(b.Context(), query)
+			b.Log("db.Prepare time:", time.Since(start))
 			check("Prepare", err)
 			defer checkDeferred("closeStmt", stmt.Close)
 
-			for range nbRuns {
+			b.ResetTimer()
+			for b.Loop() {
 				var name string
-				start := time.Now()
-				err := stmt.QueryRowContext(t.Context(), "Château de Versailles").Scan(&name)
-				t.Log("stmt.QueryRowContext time:", time.Since(start))
+				err := stmt.QueryRowContext(b.Context(), "Château de Versailles").Scan(&name)
 				check("QueryRow", err)
 			}
 		})
 
-		runQueryRow := func(t *testing.T) {
+		runQueryRow := func(b TestingB) {
 			var queryName queryRowFunc
 			start := time.Now()
-			closeQueryName, err := sqlfunc.QueryRow(t.Context(), db, query, &queryName)
-			t.Log("sqlfunc.QueryRow time:", time.Since(start))
+			closeQueryName, err := sqlfunc.QueryRow(b.Context(), db, query, &queryName)
+			b.Log("sqlfunc.QueryRow time:", time.Since(start))
 			check("Prepare queryName", err)
 			defer checkDeferred("closeQueryName", closeQueryName)
 
-			for range nbRuns {
-				start := time.Now()
-				_, err := queryName(t.Context(), "Château de Versailles")
-				t.Log("queryName time:", time.Since(start))
+			b.ResetTimer()
+			for b.Loop() {
+				_, err := queryName(b.Context(), "Château de Versailles")
 				check("queryName", err)
 			}
 		}
 
-		t.Run("First", runQueryRow)
-		t.Run("Second", runQueryRow)
+		b.Run("First", runQueryRow)
+		b.Run("Second", runQueryRow)
 	})
 
-	t.Run("Exec", func(t *testing.T) {
+	b.Run("Exec", func(b TestingB) {
 		db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
 		check("Open", err)
 		defer checkDeferred("db.Close", db.Close)
 
-		_, err = db.ExecContext(t.Context(), `CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)`)
+		_, err = db.ExecContext(b.Context(), `CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)`)
 		check("Create table", err)
 
-		const nbRuns = 10
 		const query = `INSERT INTO test (name) VALUES (?)`
 		type execFunc func(ctx context.Context, name string) (sql.Result, error)
 
-		t.Run("Manual", func(t *testing.T) {
+		b.Run("Manual", func(b TestingB) {
 			start := time.Now()
-			stmt, err := db.PrepareContext(t.Context(), query)
-			t.Log("db.Prepare time:", time.Since(start))
+			stmt, err := db.PrepareContext(b.Context(), query)
+			b.Log("db.Prepare time:", time.Since(start))
 			check("Prepare", err)
 			defer checkDeferred("closeStmt", stmt.Close)
 
-			for range nbRuns {
-				start := time.Now()
-				_, err := stmt.ExecContext(t.Context(), "test")
-				t.Log("stmt.ExecContext time:", time.Since(start))
+			b.ResetTimer()
+			for b.Loop() {
+				_, err := stmt.ExecContext(b.Context(), "test")
 				check("Exec", err)
 			}
 		})
 
-		runExec := func(t *testing.T) {
+		runExec := func(b TestingB) {
 			var insert execFunc
 			start := time.Now()
-			closeInsert, err := sqlfunc.Exec(t.Context(), db, query, &insert)
-			t.Log("sqlfunc.Exec time:", time.Since(start))
+			closeInsert, err := sqlfunc.Exec(b.Context(), db, query, &insert)
+			b.Log("sqlfunc.Exec time:", time.Since(start))
 			check("Prepare insert", err)
 			defer checkDeferred("closeInsert", closeInsert)
 
-			for range nbRuns {
-				start := time.Now()
-				_, err := insert(t.Context(), "test")
-				t.Log("insert time:", time.Since(start))
+			b.ResetTimer()
+			for b.Loop() {
+				_, err := insert(b.Context(), "test")
 				check("insert", err)
 			}
 		}
 
-		t.Run("First", runExec)
-		t.Run("Second", runExec)
+		b.Run("First", runExec)
+		b.Run("Second", runExec)
 	})
 
 }
