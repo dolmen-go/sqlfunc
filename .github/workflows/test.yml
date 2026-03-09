@@ -94,6 +94,20 @@ jobs:
             -Dsonar.go.tests.reportPaths=gotest.out
             -Dsonar.go.coverage.reportPaths=coverage.out
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          # https://github.com/codecov/codecov-action/blob/main/README.md#arguments
+          disable_search: true
+          files: ./coverage.out
+          fail_ci_if_error: true
+          report_type: coverage
+          disable_telem: true
+          # 2026-03: uploading on protected branches without a token doesn't work, even if I'm admin
+          # https://app.codecov.io/gh/dolmen-go/sqlfunc/config/general
+          # https://github.com/dolmen-go/sqlfunc/settings/secrets/actions/CODECOV_TOKEN
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: SonarQube Quality Gate
         id: sonarqube-quality-gate-check
         uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
@@ -103,12 +117,3 @@ jobs:
       # FIXME marked as error
       # - name: SonarQube Quality Gate Status
       #   run: echo "SonarQube Quality Gate status: ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
-
-      - name: Upload coverage to Codecov (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: bash <(curl -s https://codecov.io/bash)
-      #- name: Upload coverage to Codecov (Windows)
-      #  if: matrix.os == 'windows-latest'
-      #  run: |
-      #    choco install codecov
-      #    codecov.exe -f coverage.out
