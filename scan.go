@@ -33,12 +33,12 @@ func Scan[Func any](fnPtr *Func) {
 		panic("fnPtr must be non-nil")
 	}
 	fnType := reflect.TypeFor[Func]()
-	doScan(fnType, reflect.ValueOf(fnPtr))
+	doScan(fnType, fnPtr)
 }
 
-func doScan(fnType reflect.Type, fnValue reflect.Value) {
-	if fn := registryScan(fnType); fn.IsValid() {
-		fnValue.Elem().Set(fn)
+func doScan(fnType reflect.Type, fnPtr any) {
+	if fn := registryScan(fnType); fn != nil {
+		reflect.ValueOf(fnPtr).Elem().Set(reflect.ValueOf(fn))
 		return
 	}
 
@@ -103,7 +103,9 @@ func doScan(fnType reflect.Type, fnValue reflect.Value) {
 			return out
 		}
 	}
-	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
+	// Note: we don't store that func in the registry because they
+	// are closures with state, so they can't be used concurrently.
+	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
 }
 
 // ForEach iterates an [*sql.Rows], scans the values of the row and calls the given callback function with the values.

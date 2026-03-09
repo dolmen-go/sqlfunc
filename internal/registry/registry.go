@@ -18,7 +18,6 @@ package registry
 
 import (
 	"database/sql"
-	"reflect"
 )
 
 var (
@@ -34,7 +33,7 @@ var (
 
 type (
 	FuncForEach = any
-	FuncScan    = reflect.Value
+	FuncScan    = any
 
 	FuncStmt     = func(*sql.Stmt, any)
 	FuncExec     = FuncStmt
