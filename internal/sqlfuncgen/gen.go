@@ -534,14 +534,17 @@ func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, er
 	}
 	switch stmtName {
 	case "Exec":
-		if nResults != 2 {
-			return nil, errors.New("must return 2 results")
+		const errOut = "function must return (sql.Result, error) or (error)"
+		if nResults < 1 || nResults > 2 {
+			return nil, errors.New(errOut)
 		}
-		if results.At(0).Type().String() != "database/sql.Result" {
-			return nil, errors.New("function must return an sql.Result")
+		if nResults == 2 && results.At(0).Type().String() != "database/sql.Result" {
+			return nil, errors.New(errOut)
+		} else {
+			outDecls = []string{"err error"}
 		}
-		if results.At(1).Type().String() != "error" {
-			return nil, errors.New("function must return an error")
+		if results.At(nResults-1).Type().String() != "error" {
+			return nil, errors.New(errOut)
 		}
 	case "Query":
 		if nResults != 2 {
@@ -639,22 +642,24 @@ func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, er
 			}
 			return types.TypeString(results.At(0).Type(), g.qualifier)
 		}(),
-		OutDecls:   strings.Join(outDecls, ", "),
-		OutArgsPtr: "&" + strings.Join(outNames, ", &"),
+		OutDecls:      strings.Join(outDecls, ", "),
+		OutArgsPtr:    "&" + strings.Join(outNames, ", &"),
+		WithoutResult: stmtName == "Exec" && nResults == 1, // Exec
 	}
 
 	return &code, nil
 }
 
 type funcCodeStmt struct {
-	StmtName   string
-	Signature  string
-	TxType     string
-	InDecls    string
-	InNames    string
-	OutType    string
-	OutDecls   string
-	OutArgsPtr string
+	StmtName      string
+	Signature     string
+	TxType        string
+	InDecls       string
+	InNames       string
+	OutType       string
+	OutDecls      string
+	OutArgsPtr    string
+	WithoutResult bool
 }
 
 func (f funcCodeStmt) Registry() string {
@@ -669,7 +674,7 @@ func (funcCodeStmt) Template() string {
 	return alignLineNum(`
 	sqlfuncregistry.{{.StmtName}}[{{.Signature}}](
 		func(stmt *sql.Stmt, fnPtr any) {
-			*(fnPtr.(*{{.Signature}})) = func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .InDecls}}, {{.InDecls}}{{end}}) ({{ if .OutDecls }}{{.OutDecls}}{{else}}{{.OutType}}{{ if (ne .StmtName "QueryRow") }}, error{{end}}{{end}}) {
+			*(fnPtr.(*{{.Signature}})) = func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .InDecls}}, {{.InDecls}}{{end}}) ({{ if .OutDecls }}{{.OutDecls}}{{else}}{{.OutType}}{{ if ne .StmtName "QueryRow" }}, error{{end}}{{end}}) {
 {{- if .TxType }}
 				stmtTx := stmt
 				if tx != nil {
@@ -678,7 +683,7 @@ func (funcCodeStmt) Template() string {
 				}
 {{- end }}
 {{- if .OutDecls }}
-				err = stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}}).Scan({{ .OutArgsPtr }})
+				{{ if .WithoutResult }}_, {{end}}err = stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}}){{ if eq .StmtName "QueryRow" }}.Scan({{ .OutArgsPtr }}){{end}}
 				return
 {{- else }}
 				return stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}})
