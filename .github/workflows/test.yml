@@ -105,10 +105,10 @@ jobs:
       #   run: echo "SonarQube Quality Gate status: ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
 
       - name: Upload coverage to Codecov (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: bash <(curl -s https://codecov.io/bash)
-      #- name: Upload coverage to Codecov (Windows)
-      #  if: matrix.os == 'windows-latest'
-      #  run: |
-      #    choco install codecov
-      #    codecov.exe -f coverage.out
+        uses: codecov/codecov-action@v5
+        with:
+          # https://github.com/codecov/codecov-action/blob/main/README.md#arguments
+          disable_search: true
+          files: ./coverage.out
+          fail_ci_if_error: true
+          report_type: coverage
