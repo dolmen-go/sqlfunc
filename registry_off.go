@@ -23,6 +23,8 @@ import (
 	"reflect"
 )
 
+const registryEnabled = false
+
 func registrySetForEach(typ reflect.Type, f any) {
 }
 
