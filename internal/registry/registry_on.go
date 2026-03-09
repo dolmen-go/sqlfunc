@@ -21,7 +21,6 @@ package registry
 import (
 	"reflect"
 	"sync"
-	"sync/atomic"
 )
 
 func init() {
@@ -31,28 +30,15 @@ func init() {
 }
 
 type registryOf[T any] struct {
-	disabled uint32
-	m        sync.RWMutex
-	r        map[reflect.Type]T
+	m sync.RWMutex
+	r map[reflect.Type]T
 }
 
 func (r *registryOf[T]) init() {
 	r.r = make(map[reflect.Type]T)
 }
 
-func (r *registryOf[T]) Disable(ig bool) {
-	v := uint32(0)
-	if ig {
-		v = 1
-	}
-	atomic.StoreUint32(&r.disabled, v)
-}
-
 func (r *registryOf[T]) Get(typ reflect.Type) T {
-	if atomic.LoadUint32(&r.disabled) != 0 {
-		var v T
-		return v
-	}
 	r.m.RLock()
 	defer r.m.RUnlock()
 	return r.r[typ]
