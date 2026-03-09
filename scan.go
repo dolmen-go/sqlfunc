@@ -28,6 +28,8 @@ import (
 // Two styles are available:
 //   - as pointer variables (like [sql.Rows.Scan]): func (rows *sql.Rows, pval1 *int, pval2 *string) error
 //   - as returned values (implies copies): func (rows *sql.Rows) (val1 int, val2 string, err error)
+//
+// The function created is a closure (it has state), so it must not be used in concurrent goroutines.
 func Scan[Func any](fnPtr *Func) {
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
