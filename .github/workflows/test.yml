@@ -94,6 +94,15 @@ jobs:
             -Dsonar.go.tests.reportPaths=gotest.out
             -Dsonar.go.coverage.reportPaths=coverage.out
 
+      - name: Upload coverage to Codecov (Ubuntu)
+        uses: codecov/codecov-action@v5
+        with:
+          # https://github.com/codecov/codecov-action/blob/main/README.md#arguments
+          disable_search: true
+          files: ./coverage.out
+          fail_ci_if_error: true
+          report_type: coverage
+
       - name: SonarQube Quality Gate
         id: sonarqube-quality-gate-check
         uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
@@ -103,12 +112,3 @@ jobs:
       # FIXME marked as error
       # - name: SonarQube Quality Gate Status
       #   run: echo "SonarQube Quality Gate status: ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
-
-      - name: Upload coverage to Codecov (Ubuntu)
-        uses: codecov/codecov-action@v5
-        with:
-          # https://github.com/codecov/codecov-action/blob/main/README.md#arguments
-          disable_search: true
-          files: ./coverage.out
-          fail_ci_if_error: true
-          report_type: coverage
