@@ -1,0 +1,3 @@
+/coverage.out
+# "go test -json" output for SonarQube
+/gotest.out

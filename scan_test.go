@@ -21,8 +21,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
 	"log"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -37,8 +37,7 @@ func ExampleForEach() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -47,16 +46,47 @@ func ExampleForEach() {
 		` UNION ALL`+
 		` SELECT 2`)
 	if err != nil {
-		log.Printf("Query: %v", err)
-		return
+		log.Fatalf("Query: %v", err)
 	}
 
 	err = sqlfunc.ForEach(rows, func(n int) {
 		fmt.Println(n)
 	})
 	if err != nil {
-		log.Printf("ScanRows: %v", err)
-		return
+		log.Fatalf("ScanRows: %v", err)
+	}
+
+	fmt.Println("Done.")
+
+	// Output:
+	// 1
+	// 2
+	// Done.
+}
+
+func ExampleAnyAPI_ForEach() {
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	rows, err := db.QueryContext(ctx, ``+
+		`SELECT 1`+
+		` UNION ALL`+
+		` SELECT 2`)
+	if err != nil {
+		log.Fatalf("Query: %v", err)
+	}
+
+	err = sqlfunc.Any.ForEach(rows, func(n int) {
+		fmt.Println(n)
+	})
+	if err != nil {
+		log.Fatalf("ScanRows: %v", err)
 	}
 
 	fmt.Println("Done.")
@@ -73,8 +103,7 @@ func ExampleForEach_returnBool() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -85,8 +114,7 @@ func ExampleForEach_returnBool() {
 		` UNION ALL`+
 		` SELECT 3`)
 	if err != nil {
-		log.Printf("Query: %v", err)
-		return
+		log.Fatalf("Query: %v", err)
 	}
 
 	err = sqlfunc.ForEach(rows, func(n int) bool {
@@ -94,8 +122,7 @@ func ExampleForEach_returnBool() {
 		return n < 2 // Stop iterating on n == 2
 	})
 	if err != nil {
-		log.Printf("ScanRows: %v", err)
-		return
+		log.Fatalf("ScanRows: %v", err)
 	}
 
 	fmt.Println("Done.")
@@ -112,8 +139,7 @@ func ExampleForEach_returnError() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -124,20 +150,18 @@ func ExampleForEach_returnError() {
 		` UNION ALL`+
 		` SELECT 3`)
 	if err != nil {
-		log.Printf("Query: %v", err)
-		return
+		log.Fatalf("Query: %v", err)
 	}
 
 	err = sqlfunc.ForEach(rows, func(n sql.Null[int64]) error {
 		fmt.Println(n.V)
 		if n.V == 2 {
-			return io.EOF
+			return sqlfunc.Break
 		}
 		return nil
 	})
-	if err != nil && !errors.Is(err, io.EOF) {
-		log.Printf("ScanRows: %v", err)
-		return
+	if err != nil { // Note that sqlfunc.Break is caught
+		log.Fatalf("ScanRows: %v", err)
 	}
 
 	fmt.Println("Done.")
@@ -155,7 +179,6 @@ func TestForEachMulti(t *testing.T) {
 		db, err := sql.Open(sqliteDriver, ":memory:")
 		if err != nil {
 			t.Fatalf("Open: %v", err)
-			return
 		}
 		defer db.Close()
 
@@ -166,8 +189,7 @@ func TestForEachMulti(t *testing.T) {
 				` UNION ALL`+
 				` SELECT 2`)
 			if err != nil {
-				t.Errorf("Query: %v", err)
-				return
+				t.Fatalf("Query: %v", err)
 			}
 
 			err = sqlfunc.ForEach(rows, func(n int) error {
@@ -175,8 +197,7 @@ func TestForEachMulti(t *testing.T) {
 				return nil
 			})
 			if err != nil {
-				t.Errorf("ScanRows: %v", err)
-				return
+				t.Fatalf("ScanRows: %v", err)
 			}
 			t.Log(time.Since(start))
 		}
@@ -194,8 +215,7 @@ func ExampleScan() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -205,8 +225,7 @@ func ExampleScan() {
 		` UNION ALL`+
 		` SELECT 2`)
 	if err != nil {
-		log.Printf("Query1: %v", err)
-		return
+		log.Fatalf("Query1: %v", err)
 	}
 	defer rows.Close()
 
@@ -216,13 +235,12 @@ func ExampleScan() {
 	for rows.Next() {
 		var n int
 		if err = scan1(rows, &n); err != nil {
-			log.Printf("Scan1: %v", err)
-			return
+			log.Fatalf("Scan1: %v", err)
 		}
 		values1 = append(values1, n)
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Next1: %v", err)
+		log.Fatalf("Next1: %v", err)
 	}
 	fmt.Println(values1)
 
@@ -232,8 +250,7 @@ func ExampleScan() {
 		` UNION ALL`+
 		` SELECT 'b'`)
 	if err != nil {
-		log.Printf("Query2: %v", err)
-		return
+		log.Fatalf("Query2: %v", err)
 	}
 	defer rows.Close()
 
@@ -243,13 +260,77 @@ func ExampleScan() {
 	for rows.Next() {
 		s, err := scan2(rows)
 		if err != nil {
-			log.Printf("Scan2: %v", err)
-			return
+			log.Fatalf("Scan2: %v", err)
 		}
 		values2 = append(values2, s)
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Next2: %v", err)
+		log.Fatalf("Next2: %v", err)
+	}
+	fmt.Println(values2)
+
+	// Output:
+	// [1 2]
+	// [a b]
+}
+
+func ExampleAnyAPI_Scan() {
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+
+	db, err := sql.Open(sqliteDriver, ":memory:")
+	if err != nil {
+		log.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	var scan1 func(*sql.Rows, *int) error
+	rows, err := db.QueryContext(ctx, ``+
+		`SELECT 1`+
+		` UNION ALL`+
+		` SELECT 2`)
+	if err != nil {
+		log.Fatalf("Query1: %v", err)
+	}
+	defer rows.Close()
+
+	sqlfunc.Any.Scan(&scan1)
+
+	var values1 []int
+	for rows.Next() {
+		var n int
+		if err = scan1(rows, &n); err != nil {
+			log.Fatalf("Scan1: %v", err)
+		}
+		values1 = append(values1, n)
+	}
+	if err = rows.Err(); err != nil {
+		log.Fatalf("Next1: %v", err)
+	}
+	fmt.Println(values1)
+
+	var scan2 func(*sql.Rows) (string, error)
+	rows, err = db.QueryContext(ctx, ``+
+		`SELECT 'a'`+
+		` UNION ALL`+
+		` SELECT 'b'`)
+	if err != nil {
+		log.Fatalf("Query2: %v", err)
+	}
+	defer rows.Close()
+
+	sqlfunc.Any.Scan(&scan2)
+
+	var values2 []string
+	for rows.Next() {
+		s, err := scan2(rows)
+		if err != nil {
+			log.Fatalf("Scan2: %v", err)
+		}
+		values2 = append(values2, s)
+	}
+	if err = rows.Err(); err != nil {
+		log.Fatalf("Next2: %v", err)
 	}
 	fmt.Println(values2)
 
@@ -264,8 +345,7 @@ func ExampleScan_any() {
 
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		log.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -277,8 +357,7 @@ func ExampleScan_any() {
 		` UNION ALL`+
 		` SELECT 'a'`)
 	if err != nil {
-		log.Printf("Query1: %v", err)
-		return
+		log.Fatalf("Query1: %v", err)
 	}
 	defer rows.Close()
 
@@ -287,13 +366,12 @@ func ExampleScan_any() {
 	for rows.Next() {
 		var v any
 		if err = scan1(rows, &v); err != nil {
-			log.Printf("Scan1: %v", err)
-			return
+			log.Fatalf("Scan1: %v", err)
 		}
 		fmt.Printf("%T %#[1]v\n", v)
 	}
 	if err = rows.Err(); err != nil {
-		log.Printf("Next1: %v", err)
+		log.Fatalf("Next1: %v", err)
 	}
 
 	// Output:
@@ -360,6 +438,93 @@ func TestScanScanner(t *testing.T) {
 			var scanScanner4 func(*sql.Rows) (interface{ Scan(src any) error }, error)
 			sqlfunc.Scan(&scanScanner4)
 		}()
+	})
+}
+
+func TestScanInvalidSignatures(t *testing.T) {
+	CheckInvalidTargets(t, new(struct {
+		Any     any                   `panic:"fnPtr must be a pointer to a *func* variable"`
+		NoArg   func()                `panic:"func first arg must be an *sql.Rows"`
+		NoRows1 func(int)             `panic:"func first arg must be an *sql.Rows"`
+		NoRows2 func() int            `panic:"func first arg must be an *sql.Rows"`
+		NoRows3 func() error          `panic:"func first arg must be an *sql.Rows"`
+		NoError func(*sql.Rows)       `panic:"func must return error as last value"`
+		NoArgs  func(*sql.Rows) error `panic:"func must either take scanners as arguments or return values"`
+
+		InOut func(*sql.Rows, *int64) (int64, error) `panic:"func must either take scanners as arguments or return values"`
+
+		InNotPtr    func(*sql.Rows, int64) error     `panic:"" todo:"should reject non-pointer"`
+		InPtrPtrPtr func(*sql.Rows, ***int64) error  `panic:"" todo:"should reject double pointer as input"`
+		OutPtrPtr   func(*sql.Rows) (**int64, error) `panic:"" todo:"should reject double pointer as output"`
+		OutPtrItf   func(*sql.Rows) (*any, error)    `panic:"" todo:"no check yet"`
+
+		VariadicInts func(*sql.Rows, ...int64) error `panic:"func must not be variadic"`
+		VariadicRows func(...*sql.Rows) error        `panic:"func must not be variadic"`
+	}), sqlfunc.Any.Scan)
+
+	t.Run("NilPtr", func(t *testing.T) {
+		t.Run("Any", func(t *testing.T) {
+			for _, v := range []any{
+				nil,
+				(func(*sql.Rows, int64) error)(nil),
+				(*func(*sql.Rows, int64) error)(nil),
+			} {
+				val := reflect.ValueOf(&v).Elem()
+				typ := val.Type()
+				if !val.IsNil() {
+					typ = val.Elem().Type()
+				}
+				t.Run(typ.String()+"(nil)", func(t *testing.T) {
+					MustPanic(t, [...]string{
+						"fnPtr must be non-nil",
+						"fnPtr must be a pointer to a *func* variable",
+					}, func() {
+						sqlfunc.Any.Scan(v)
+					})
+				})
+			}
+		})
+		t.Run("Typed", func(t *testing.T) {
+			MustPanic(t, "fnPtr must be non-nil", func() {
+				sqlfunc.Scan((*func(*sql.Rows, int64) error)(nil))
+			})
+		})
+	})
+}
+
+func TestForEachInvalidSignatures(t *testing.T) {
+	t.Run("Any", func(t *testing.T) {
+		for _, v := range []any{
+			// nil, // obvious mistake => no need to implement a check
+			[0]int{},
+			(func(*int64) error)(nil),
+			(func() (int64, error))(nil),
+		} {
+			val := reflect.ValueOf(&v).Elem()
+			typ := val.Type()
+			if !val.IsNil() {
+				typ = val.Elem().Type()
+			}
+			t.Run(typ.String()+"(nil)", func(t *testing.T) {
+				MustPanic(t, [...]string{
+					"callback must be non-nil",
+					"callback must be a func",
+				}, func() {
+					sqlfunc.Any.ForEach(nil, v)
+				})
+			})
+		}
+	})
+	t.Run("Typed", func(t *testing.T) {
+		MustPanic(t, "callback must be a func", func() {
+			sqlfunc.ForEach(nil, 3)
+		})
+		MustPanic(t, "callback must be non-nil", func() {
+			sqlfunc.ForEach(nil, (func(*int64) error)(nil))
+		})
+		MustPanic(t, "callback must be non-nil", func() {
+			sqlfunc.ForEach(nil, (func() (int64, error))(nil))
+		})
 	})
 }
 
@@ -464,8 +629,7 @@ func TestForEach_oneColumn(t *testing.T) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		t.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -496,20 +660,17 @@ func TestForEach_oneColumn(t *testing.T) {
 	t.Log("Get connection...")
 	conn, err := db.Conn(t.Context())
 	if err != nil {
-		t.Errorf("Conn: %v", err)
-		return
+		t.Fatalf("Conn: %v", err)
 	}
 
 	t.Log("Create table...")
 	_, err = conn.ExecContext(t.Context(), `CREATE TABLE t1 (dt DATETIME)`)
 	if err != nil {
-		t.Errorf("Create table: %v", err)
-		return
+		t.Fatalf("Create table: %v", err)
 	}
 	_, err = conn.ExecContext(t.Context(), `INSERT INTO t1 (dt) VALUES (datetime('2026-02-20 15:19:56'))`)
 	if err != nil {
-		t.Errorf("Insert: %v", err)
-		return
+		t.Fatalf("Insert: %v", err)
 	}
 
 	t.Run("oneColumn_Time", func(t *testing.T) {
@@ -761,8 +922,7 @@ func BenchmarkForEach(b *testing.B) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		log.Printf("Open: %v", err)
-		return
+		b.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -821,8 +981,7 @@ func BenchmarkScan(b *testing.B) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
-		b.Errorf("Open: %v", err)
-		return
+		b.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -856,6 +1015,7 @@ func BenchmarkScan(b *testing.B) {
 				var n int
 				if err := rows.Scan(&n); err != nil {
 					b.Fatal(err)
+					return
 				}
 				_ = n
 			}
@@ -875,6 +1035,7 @@ func BenchmarkScan(b *testing.B) {
 				var n int
 				if err := scan(rows, &n); err != nil {
 					b.Fatal(err)
+					return
 				}
 				_ = n
 			}
@@ -895,6 +1056,7 @@ func BenchmarkScan(b *testing.B) {
 				n, err := scan(rows)
 				if err != nil {
 					b.Fatal(err)
+					return
 				}
 				_ = n
 			}
@@ -916,7 +1078,6 @@ func benchScan_oneColumn[T any](
 		stmt, err := conn.PrepareContext(tb.Context(), query)
 		if err != nil {
 			tb.Fatalf("Prepare: %v", err)
-			return
 		}
 		defer stmt.Close()
 
@@ -1043,8 +1204,7 @@ func suiteScan(tb TestingB) {
 	// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 	db, err := sql.Open(sqliteDriver, ":memory:?cache=shared")
 	if err != nil {
-		tb.Errorf("Open: %v", err)
-		return
+		tb.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
@@ -1058,4 +1218,12 @@ func BenchmarkScanSuite(b *testing.B) {
 
 func TestScanSuite(t *testing.T) {
 	suiteScan(TestingTAsB(t))
+}
+
+// Just for coverage metrics
+func TestErrors(_ *testing.T) {
+	_ = sqlfunc.Break.Error()
+	e := sqlfunc.ScanError{Err: errors.New("xx")}
+	_ = e.Error()
+	_ = e.Unwrap()
 }

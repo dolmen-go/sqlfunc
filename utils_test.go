@@ -16,7 +16,96 @@ limitations under the License.
 
 package sqlfunc_test
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+// CatchPanic runs f and returns the recovered panic, if any.
+func CatchPanic(f func()) (p any) {
+	defer func() {
+		p = recover()
+	}()
+
+	f()
+
+	return
+}
+
+func MustPanic[T comparable](t testing.TB, expected T, f func()) bool {
+	switch got := CatchPanic(f); got {
+	case nil:
+		t.Errorf("Panic %q expected, got nothing!", any(expected))
+	case expected:
+		t.Logf("%T %[1]q", got)
+		return true
+	default:
+		v := reflect.ValueOf(expected)
+		// Slice or Array => one value must be equal
+		if v.Kind() == reflect.Array || v.Kind() == reflect.Slice {
+			gotV := reflect.ValueOf(got)
+			for i := range v.Len() {
+				if v.Index(i).Equal(gotV) {
+					t.Logf("%T %[1]q", got)
+					return true
+				}
+			}
+		}
+		t.Errorf("\nGot:      %T %[1]q\nExpected: %T %[2]q", got, any(expected))
+	}
+	return false
+}
+
+// CheckInvalidTargets runs "fn" with a pointer to each field of struct "tests".
+//
+// Each field is a test. The field name is the test name.
+// The tags attached to fields specify the expected behaviour:
+//   - panic: the expected string panic value
+//   - todo: skip failure of the test, or report an unexpected success
+func CheckInvalidTargets(t *testing.T, tests any, fn func(any)) {
+	v := reflect.ValueOf(tests)
+	if v.Kind() != reflect.Struct {
+		v = v.Elem()
+	}
+	vt := v.Type()
+	if vt.Kind() != reflect.Struct {
+		t.Fatalf("%v is not a struct", vt.String())
+	}
+	for fieldIdx := range vt.NumField() {
+		fieldType := vt.Field(fieldIdx)
+		name := fieldType.Name
+		t.Run(name, func(t *testing.T) {
+			t.Log("Type:", fieldType.Type)
+			expected, hasPanic := fieldType.Tag.Lookup("panic")
+			if !hasPanic {
+				t.Fatalf(`%s: missing "panic" tag`, name)
+			}
+
+			p := CatchPanic(func() {
+				fn(v.Field(fieldIdx).Addr().Interface())
+			})
+			if p == nil {
+				if todo, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
+					t.Skip("TODO:", todo)
+				}
+				t.Fatalf("Expected panic: %q", expected)
+			}
+			if expected != "" {
+				if p != expected {
+					if todo, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
+						t.Skip("TODO:", todo)
+					}
+					t.Fatalf("Panic:     %q\n\tExpected: %q", p, expected)
+				}
+			} else {
+				t.Logf("Panic (expected, but not specified): %q", p)
+			}
+			if todo, hasToDo := fieldType.Tag.Lookup("todo"); hasToDo {
+				t.Fatalf("\033[1;32mTest pass, but marked as TODO \033[1;34m%q\033[m", todo)
+			}
+		})
+	}
+}
 
 // TestingB is an extension of [testing.TB] that abstracts both [*testing.T] and [*testing.B],
 // allowing to write benchmarks that can also be run as tests without modification.
@@ -45,8 +134,11 @@ type testingTAsB struct {
 
 func (t *testingTAsB) Loop() bool {
 	// Just run once
-	defer func() { t.loopDone = true }()
-	return !t.loopDone
+	if t.loopDone {
+		return false
+	}
+	t.loopDone = true
+	return true
 }
 
 func (t testingTAsB) ReportAllocs() {

@@ -668,8 +668,8 @@ func (f funcCodeStmt) Key() string {
 func (funcCodeStmt) Template() string {
 	return alignLineNum(`
 	sqlfuncregistry.{{.StmtName}}[{{.Signature}}](
-		func(stmt *sql.Stmt) reflect.Value {
-			return reflect.ValueOf(func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .InDecls}}, {{.InDecls}}{{end}}) ({{ if .OutDecls }}{{.OutDecls}}{{else}}{{.OutType}}{{ if (ne .StmtName "QueryRow") }}, error{{end}}{{end}}) {
+		func(stmt *sql.Stmt, fnPtr any) {
+			*(fnPtr.(*{{.Signature}})) = func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .InDecls}}, {{.InDecls}}{{end}}) ({{ if .OutDecls }}{{.OutDecls}}{{else}}{{.OutType}}{{ if (ne .StmtName "QueryRow") }}, error{{end}}{{end}}) {
 {{- if .TxType }}
 				stmtTx := stmt
 				if tx != nil {
@@ -683,7 +683,7 @@ func (funcCodeStmt) Template() string {
 {{- else }}
 				return stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}})
 {{- end}}
-			})
+			}
 		},
 	)
 `)

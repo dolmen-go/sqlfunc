@@ -72,6 +72,9 @@ func doExec(fnType reflect.Type, ctx context.Context, db PrepareConn, query stri
 		if fnType.Kind() != reflect.Func {
 			panic("fnPtr must be a pointer to a *func* variable")
 		}
+		if fnType.IsVariadic() {
+			panic("func must not be variadic")
+		}
 		numIn := fnType.NumIn()
 		if numIn < 1 || fnType.In(0) != typeContext {
 			panic("func first arg must be a context.Context")
@@ -146,6 +149,9 @@ func doQueryRow(fnType reflect.Type, ctx context.Context, db PrepareConn, query 
 	if makeFn == nil {
 		if fnType.Kind() != reflect.Func {
 			panic("fnPtr must be a pointer to a *func* variable")
+		}
+		if fnType.IsVariadic() {
+			panic("func must not be variadic")
 		}
 		numIn := fnType.NumIn()
 		if numIn < 1 || fnType.In(0) != typeContext {
@@ -236,6 +242,9 @@ func doQuery(fnType reflect.Type, ctx context.Context, db PrepareConn, query str
 	if makeFn == nil {
 		if fnType.Kind() != reflect.Func {
 			panic("fnPtr must be a pointer to a *func* variable")
+		}
+		if fnType.IsVariadic() {
+			panic("func must not be variadic")
 		}
 		numIn := fnType.NumIn()
 		if numIn < 1 || fnType.In(0) != typeContext {

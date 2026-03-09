@@ -38,14 +38,14 @@ func Scan[Func any](f Func) {
 	registry.Scan.Register(reflect.TypeFor[Func](), reflect.ValueOf(f))
 }
 
-func Exec[Func any](f func(*sql.Stmt) reflect.Value) {
+func Exec[Func any](f func(stmt *sql.Stmt, fnPtr any)) {
 	registry.Stmt.Register(reflect.TypeFor[Func](), f)
 }
 
-func QueryRow[Func any](f func(*sql.Stmt) reflect.Value) {
+func QueryRow[Func any](f func(stmt *sql.Stmt, fnPtr any)) {
 	registry.Stmt.Register(reflect.TypeFor[Func](), f)
 }
 
-func Query[Func any](f func(*sql.Stmt) reflect.Value) {
+func Query[Func any](f func(stmt *sql.Stmt, fnPtr any)) {
 	registry.Stmt.Register(reflect.TypeFor[Func](), f)
 }

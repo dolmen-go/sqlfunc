@@ -21,7 +21,6 @@ package sqlfuncregistry
 
 import (
 	"database/sql"
-	"reflect"
 )
 
 func ForEach[Func any, Scan func(*sql.Rows, Func) error](f Scan) {
@@ -30,11 +29,11 @@ func ForEach[Func any, Scan func(*sql.Rows, Func) error](f Scan) {
 func Scan[Func any](f Func) {
 }
 
-func Exec[Func any](f func(*sql.Stmt) reflect.Value) {
+func Exec[Func any](f func(*sql.Stmt, any)) {
 }
 
-func QueryRow[Func any](f func(*sql.Stmt) reflect.Value) {
+func QueryRow[Func any](f func(*sql.Stmt, any)) {
 }
 
-func Query[Func any](f func(*sql.Stmt) reflect.Value) {
+func Query[Func any](f func(*sql.Stmt, any)) {
 }

@@ -29,4 +29,14 @@ limitations under the License.
 //
 //	user, err := whoami(ctx)
 //	fmt.Println("Connected as", user)
+//
+// # Build tags
+//
+//   - sqlfunc_registry_on (default): internal cache is enabled.
+//   - sqlfunc_registry_off: internal cache is disabled.
+//
+// Note: the registry will have its maximum impact when the sqlfunc-gen tool will
+// be available. Check the [experiment-gen] branch for progress.
+//
+// [experiment-gen]: https://github.com/dolmen-go/sqlfunc/commits/experiment-gen/
 package sqlfunc
