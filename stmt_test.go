@@ -52,8 +52,9 @@ func ExampleExec() {
 	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
 	check("Create table", err)
 
-	// newPOI is the function that will call the INSERT statement
-	var newPOI func(ctx context.Context, lat float32, lon float32, name string) (sql.Result, error)
+	// newPOI is the function that will call the INSERT statement.
+	// We won't use the sql.Result, so it's left out of the returned values.
+	var newPOI func(ctx context.Context, lat float32, lon float32, name string) error
 	closeStmt, err := sqlfunc.Exec(
 		ctx, conn,
 		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
@@ -63,7 +64,7 @@ func ExampleExec() {
 	defer checkDeferred("closeStmt", closeStmt)
 
 	// To call the prepared statement we use the strongly typed function
-	_, err = newPOI(ctx, 48.8016, 2.1204, "Château de Versailles")
+	err = newPOI(ctx, 48.8016, 2.1204, "Château de Versailles")
 	check("newPOI", err)
 
 	var name string
@@ -128,8 +129,9 @@ func ExampleAnyAPI_Exec() {
 	_, err = conn.ExecContext(ctx, `CREATE TABLE poi (lat DECIMAL, lon DECIMAL, name VARCHAR(255))`)
 	check("Create table", err)
 
-	// newPOI is the function that will call the INSERT statement
-	var newPOI func(ctx context.Context, lat float32, lon float32, name string) (sql.Result, error)
+	// newPOI is the function that will call the INSERT statement.
+	// We won't use the sql.Result, so it's left out of the returned values.
+	var newPOI func(ctx context.Context, lat float32, lon float32, name string) error
 	closeStmt, err := sqlfunc.Any.Exec(
 		ctx, conn,
 		`INSERT INTO poi (lat, lon, name) VALUES (?, ?, ?)`,
@@ -139,7 +141,7 @@ func ExampleAnyAPI_Exec() {
 	defer checkDeferred("closeStmt", closeStmt)
 
 	// To call the prepared statement we use the strongly typed function
-	_, err = newPOI(ctx, 48.8016, 2.1204, "Château de Versailles")
+	err = newPOI(ctx, 48.8016, 2.1204, "Château de Versailles")
 	check("newPOI", err)
 
 	var name string
@@ -483,16 +485,16 @@ func TestExecInvalidSignatures(t *testing.T) {
 		NoArg       func()                                                `panic:"func first arg must be a context.Context"`
 		NoContext   func() (sql.Result, error)                            `panic:"func first arg must be a context.Context"`
 		NoContext2  func(int64) (sql.Result, error)                       `panic:"func first arg must be a context.Context"`
-		NoError     func(context.Context)                                 `panic:"func must return (sql.Result, error)"`
-		NoResult    func(context.Context) error                           `panic:"func must return (sql.Result, error)"`
-		NotResultIE func(context.Context) (int64, error)                  `panic:"func must return (sql.Result, error)"`
-		NotResultEE func(context.Context) (error, error)                  `panic:"func must return (sql.Result, error)"`
-		NotResultRI func(context.Context) (sql.Result, int)               `panic:"func must return (sql.Result, error)"`
-		NotError    func(context.Context) (sql.Result, sql.Result)        `panic:"func must return (sql.Result, error)"`
-		ResultREE   func(context.Context) (sql.Result, error, error)      `panic:"func must return (sql.Result, error)"`
-		ResultRRE   func(context.Context) (sql.Result, sql.Result, error) `panic:"func must return (sql.Result, error)"`
+		NoError     func(context.Context)                                 `panic:"func must return (sql.Result, error) or (error)"`
+		NoResult    func(context.Context) (sql.Result, int)               `panic:"func must return (sql.Result, error) or (error)"`
+		NotResultIE func(context.Context) (int64, error)                  `panic:"func must return (sql.Result, error) or (error)"`
+		NotResultEE func(context.Context) (error, error)                  `panic:"func must return (sql.Result, error) or (error)"`
+		NotResultRI func(context.Context) (sql.Result, int)               `panic:"func must return (sql.Result, error) or (error)"`
+		NotError    func(context.Context) (sql.Result, sql.Result)        `panic:"func must return (sql.Result, error) or (error)"`
+		ResultREE   func(context.Context) (sql.Result, error, error)      `panic:"func must return (sql.Result, error) or (error)"`
+		ResultRRE   func(context.Context) (sql.Result, sql.Result, error) `panic:"func must return (sql.Result, error) or (error)"`
 		// sql.Result is an interface. Can't be returned as pointer.
-		ResultIsPtr func(context.Context) (*sql.Result, error) `panic:"func must return (sql.Result, error)"`
+		ResultIsPtr func(context.Context) (*sql.Result, error) `panic:"func must return (sql.Result, error) or (error)"`
 
 		NotTxPtr func(context.Context, sql.Tx) (sql.Result, error) `panic:"func should take *sql.Tx, not sql.Tx" todo:"should require *sql.Tx, reject sql.Tx"`
 

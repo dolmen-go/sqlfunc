@@ -126,7 +126,7 @@ func makeStmtFunc(
 // If a [*sql.Tx] is given as the second argument, the statement will be localized to the transaction (using [sql.Tx.StmtContext]).
 // The following arguments will be given as arguments to [sql.Stmt.ExecContext].
 //
-// The function will return an [sql.Result] and an error.
+// The function will return an [sql.Result] and an error. The [sql.Result] may be omitted.
 //
 // The returned func 'close' must be called once the statement is not needed anymore.
 //
@@ -156,9 +156,20 @@ func Exec[Func any](ctx context.Context, db PrepareConn, query string, fnPtr *Fu
 }
 
 func checkExec(fnType reflect.Type) {
-	if fnType.NumOut() != 2 || fnType.Out(0) != typeResult || fnType.Out(1) != typeError {
-		panic("func must return (sql.Result, error)")
+	const errOut = "func must return (sql.Result, error) or (error)"
+	numOut := fnType.NumOut()
+	switch numOut {
+	case 2:
+		if fnType.Out(0) != typeResult {
+			panic(errOut)
+		}
+		fallthrough
+	case 1:
+		if fnType.Out(numOut-1) == typeError {
+			return // OK
+		}
 	}
+	panic(errOut)
 }
 
 func checkQueryRow(fnType reflect.Type) {
@@ -199,15 +210,11 @@ func makeExec(fnType reflect.Type) func(*sql.Stmt, any) {
 	// Optional *sql.Tx as In(1) (if db is not already a *sql.Tx)
 	withTx := fnType.NumIn() > 1 && fnType.In(1).Implements(typeTxStmt)
 
-	// returning just an error (ignoring sql.Result) isn't implemented
-	if fnType.NumOut() != 2 || fnType.Out(0) != typeResult || fnType.Out(1) != typeError {
-		panic("func must return (sql.Result, error)")
-	}
-
 	firstArg := 1
 	if withTx {
 		firstArg = 2
 	}
+	withResult := fnType.NumOut() == 2
 
 	return func(stmt *sql.Stmt, fnPtr any) {
 		fn := reflect.MakeFunc(fnType, func(in []reflect.Value) []reflect.Value {
@@ -225,7 +232,11 @@ func makeExec(fnType reflect.Type) func(*sql.Stmt, any) {
 				}
 			}
 			r, err := stmtTx.ExecContext(ctx, args...)
-			return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
+			if withResult {
+				return []reflect.Value{reflect.ValueOf(&r).Elem(), reflect.ValueOf(&err).Elem()}
+			} else {
+				return []reflect.Value{reflect.ValueOf(&err).Elem()}
+			}
 		})
 
 		reflect.ValueOf(fnPtr).Elem().Set(fn)
