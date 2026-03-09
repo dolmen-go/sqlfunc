@@ -1,4 +1,4 @@
-//go:build sqlfunc_registry_on || !sqlfunc_registry_off
+//go:build !sqlfunc_registry_off
 
 /*
 Copyright 2026 Olivier Mengué
@@ -16,36 +16,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package registry
+package sqlfunc_test
 
-import (
-	"reflect"
-	"sync"
-)
-
-func init() {
-	ForEach.init()
-	Scan.init()
-	Stmt.init()
-}
-
-type registryOf[T any] struct {
-	m sync.RWMutex
-	r map[reflect.Type]T
-}
-
-func (r *registryOf[T]) init() {
-	r.r = make(map[reflect.Type]T)
-}
-
-func (r *registryOf[T]) Get(typ reflect.Type) T {
-	r.m.RLock()
-	defer r.m.RUnlock()
-	return r.r[typ]
-}
-
-func (r *registryOf[T]) Register(typ reflect.Type, v T) {
-	r.m.Lock()
-	defer r.m.Unlock()
-	r.r[typ] = v
-}
+const RegistryEnabled = true

@@ -1,5 +1,3 @@
-//go:build sqlfunc_registry_on || !sqlfunc_registry_off
-
 /*
 Copyright 2026 Olivier Mengué
 
@@ -19,33 +17,31 @@ limitations under the License.
 package registry
 
 import (
+	"database/sql"
 	"reflect"
-	"sync"
+	"testing"
 )
 
-func init() {
-	ForEach.init()
-	Scan.init()
-	Stmt.init()
+func scanInt(rows *sql.Rows) (v0 int, err error) {
+	err = rows.Scan(&v0)
+	return
 }
 
-type registryOf[T any] struct {
-	m sync.RWMutex
-	r map[reflect.Type]T
-}
+func TestScan(t *testing.T) {
+	// This test exists just to get coverage of registry_off.go and reach 100%.
+	// The real tests are in sqlfunc package.
 
-func (r *registryOf[T]) init() {
-	r.r = make(map[reflect.Type]T)
-}
+	typ := reflect.TypeOf(scanInt)
+	if Scan.Get(typ).IsValid() {
+		t.Errorf("registry is expected to be empty")
+	}
+	v := reflect.ValueOf(scanInt)
+	Scan.Register(typ, v)
 
-func (r *registryOf[T]) Get(typ reflect.Type) T {
-	r.m.RLock()
-	defer r.m.RUnlock()
-	return r.r[typ]
-}
-
-func (r *registryOf[T]) Register(typ reflect.Type, v T) {
-	r.m.Lock()
-	defer r.m.Unlock()
-	r.r[typ] = v
+	v2 := Scan.Get(typ)
+	if !v2.IsValid() {
+		t.Logf("registry is disabled (sqlfunc_registry_off)")
+	} else if v2.Type() != v.Type() {
+		t.Errorf("not same type")
+	}
 }

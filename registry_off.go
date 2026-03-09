@@ -23,6 +23,8 @@ import (
 	"reflect"
 )
 
+const registryEnabled = false
+
 func registrySetForEach(typ reflect.Type, f any) {
 }
 
@@ -37,14 +39,9 @@ func registryScan(typ reflect.Type) reflect.Value {
 	return reflect.Value{}
 }
 
-func registryExec(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return nil
+func registrySetStmt(typ reflect.Type, f func(*sql.Stmt, any)) {
 }
 
-func registryQueryRow(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return nil
-}
-
-func registryQuery(typ reflect.Type) func(*sql.Stmt) reflect.Value {
+func registryStmt(typ reflect.Type) func(*sql.Stmt, any) {
 	return nil
 }

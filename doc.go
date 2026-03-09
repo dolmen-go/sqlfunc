@@ -14,26 +14,57 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sqlfunc provides utilities to wrap SQL prepared statements with strongly typed Go functions.
+// Package sqlfunc provides utilities to bind SQL statements to strongly-typed Go functions.
 //
-// You just have to define the function signature you need:
+// By leveraging generics and reflection, it reduces boilerplate and minimizes common
+// [database/sql] errors like incorrect column scanning or argument count mismatches.
 //
-//	var whoami func(context.Context) (string, error)
+// # Core Concepts
 //
-// and the SQL statement that this function wraps:
+//   - [Exec], [QueryRow], and [Query]: Bind SQL statements to function variables.
+//   - [ForEach]: Iterate over [*sql.Rows] using a callback with automatically scanned arguments.
+//   - [Scan]: Create reusable row-scanning functions.
+//   - [Any]: Similar API, but reduced compile-time constraints for more flexibility.
 //
-//	close, err := sqlfunc.QueryRow(ctx, db, `SELECT USER()`, &whoami)  // MySQL example
+// # Example: Binding a Query
+//
+// You just have to define the function signature you need as a variable:
+//
+//	var getPOI func(ctx context.Context, name string) (lat float64, lon float64, err error)
+//
+// and bind it to an SQL statement:
+//
+//	close, err := sqlfunc.QueryRow(ctx, db, `SELECT lat, lon FROM poi WHERE name = ?`, &getPOI)
+//	if err != nil { /* ... */ }
 //	defer close()
 //
 // You can now use the function:
 //
-//	user, err := whoami(ctx)
-//	fmt.Println("Connected as", user)
+//	lat, lon, err := getPOI(ctx, "Château de Versailles")
 //
-// # Build tags
+// # Example: Iterating over Rows
 //
-//   - sqlfunc_registry_on (default): internal cache is enabled.
-//   - sqlfunc_registry_off: internal cache is disabled.
+//	rows, err := db.QueryContext(ctx, "SELECT name, lat, lon FROM poi")
+//	if err != nil { /* ... */ }
+//
+//	err = sqlfunc.ForEach(rows, func(name string, lat, lon float64) {
+//	    fmt.Printf("%s: %.4f, %.4f\n", name, lat, lon)
+//	})
+//
+// # Transaction Support
+//
+// Generated functions can optionally participate in transactions by accepting a [*sql.Tx]
+// as their second argument (after [context.Context]):
+//
+//	var insertPOI func(ctx context.Context, tx *sql.Tx, name string, lat, lon float64) (sql.Result, error)
+//
+// # Build Tags
+//
+//   - sqlfunc_registry_on (default): internal cache of bindings is enabled.
+//   - sqlfunc_registry_off: internal cache of bindings is disabled.
+//   - sqlfunc_registry_sync: internal cache of bindings is enabled, with
+//     new bindings being registered synchronously (instead of in the background).
+//     Only useful for reliable benchmarks.
 //
 // Note: the registry will have its maximum impact when the sqlfunc-gen tool will
 // be available. Check the [experiment-gen] branch for progress.

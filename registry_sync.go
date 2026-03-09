@@ -25,6 +25,8 @@ import (
 	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
+const registryEnabled = true
+
 func registrySetForEach(typ reflect.Type, f any) {
 	// Register synchronously
 	registry.ForEach.Register(typ, f)
@@ -43,14 +45,11 @@ func registryScan(typ reflect.Type) reflect.Value {
 	return registry.Scan.Get(typ)
 }
 
-func registryExec(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return registry.Stmt.Get(typ)
+func registrySetStmt(typ reflect.Type, f func(*sql.Stmt, any)) {
+	// Register synchronously
+	registry.Stmt.Register(typ, f)
 }
 
-func registryQueryRow(typ reflect.Type) func(*sql.Stmt) reflect.Value {
-	return registry.Stmt.Get(typ)
-}
-
-func registryQuery(typ reflect.Type) func(*sql.Stmt) reflect.Value {
+func registryStmt(typ reflect.Type) func(*sql.Stmt, any) {
 	return registry.Stmt.Get(typ)
 }

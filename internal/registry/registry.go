@@ -25,7 +25,10 @@ var (
 	ForEach registryOf[FuncForEach]
 	Scan    registryOf[FuncScan]
 	// Stmt is the shared registry for Exec, QueryRow, Query.
-	// This is possible because the shapes of the return types never overlap.
+	// This is possible because the shapes of the return types never overlap:
+	// - Exec: returns (sql.Result, error) or (error)
+	// - Query: returns (*sql.Rows, error)
+	// - QueryRow: returns (*sql.Row) or (values..., error)
 	Stmt registryOf[FuncStmt]
 )
 
@@ -33,7 +36,7 @@ type (
 	FuncForEach = any
 	FuncScan    = reflect.Value
 
-	FuncStmt     = func(stmt *sql.Stmt) reflect.Value // Exec, QueryRow, Query
+	FuncStmt     = func(*sql.Stmt, any)
 	FuncExec     = FuncStmt
 	FuncQueryRow = FuncStmt
 	FuncQuery    = FuncStmt

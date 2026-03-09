@@ -22,12 +22,6 @@ import "reflect"
 
 type registryOf[T any] struct{}
 
-func (r *registryOf[T]) init() {
-}
-
-func (r *registryOf[T]) Disable(ig bool) {
-}
-
 func (r *registryOf[T]) Get(typ reflect.Type) (_ T) {
 	return
 }

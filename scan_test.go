@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/dolmen-go/sqlfunc"
-	"github.com/dolmen-go/sqlfunc/internal/registry"
 )
 
 func ExampleForEach() {
@@ -174,6 +173,8 @@ func ExampleForEach_returnError() {
 
 func TestForEachMulti(t *testing.T) {
 	testForEachMulti := func(t *testing.T) {
+		t.Log("RegistryEnabled:", RegistryEnabled)
+
 		ctx := t.Context()
 		// As the DB is in-memory, we need to use the same connection for all operations that change the DB state
 		db, err := sql.Open(sqliteDriver, ":memory:")
@@ -203,10 +204,7 @@ func TestForEachMulti(t *testing.T) {
 		}
 	}
 
-	registry.ForEach.Disable(true)
-	t.Run("registryDISABLED", testForEachMulti)
-	registry.ForEach.Disable(false)
-	t.Run("registryENABLED", testForEachMulti)
+	testForEachMulti(t)
 }
 
 func ExampleScan() {

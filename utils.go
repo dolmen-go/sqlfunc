@@ -36,6 +36,7 @@ var (
 	// Concrete types
 	typeBool = reflect.TypeFor[bool]()
 	typeRows = reflect.TypeFor[*sql.Rows]()
+	typeRow  = reflect.TypeFor[*sql.Row]()
 
 	// Interfaces
 	typeContext = reflect.TypeFor[context.Context]()
