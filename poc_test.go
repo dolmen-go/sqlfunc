@@ -7,5 +7,8 @@ import (
 )
 
 func TestScanSrc(t *testing.T) {
-	sqlfuncgen.Generate(t, "pattern=.")
+	err := sqlfuncgen.Generate(t, "pattern=.")
+	if err != nil {
+		t.Fatal(err)
+	}
 }

@@ -36,10 +36,9 @@ import (
 )
 
 func Generate(t interface {
-	Fatalf(format string, args ...any)
 	Log(args ...any)
 	Logf(format string, args ...any)
-}, patterns ...string) {
+}, patterns ...string) error {
 	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
 
 	cfg := &packages.Config{
@@ -50,11 +49,11 @@ func Generate(t interface {
 	pkgs, err := packages.Load(cfg, patterns...)
 	// pkgs, err := packages.Load(cfg, "file=./stmt_test.go")
 	if err != nil {
-		t.Fatalf("load: %s", err)
-		return
+		return fmt.Errorf("load: %w", err)
 	}
-	if packages.PrintErrors(pkgs) > 0 {
-		return
+	// TODO(dolmen) Don't print directly on os.Stderr.
+	if n := packages.PrintErrors(pkgs); n > 0 {
+		return fmt.Errorf("%d errors.", n)
 	}
 
 	// Lint each package we find.
@@ -201,8 +200,7 @@ func Generate(t interface {
 			slices.Sort(keys)
 			for _, k := range keys {
 				if err := printFuncCode(&buf, gen.Funcs[k]); err != nil {
-					t.Fatalf("%s: %v", k, err)
-					return
+					return fmt.Errorf("%s: %w", k, err)
 				}
 			}
 			buf.WriteString("}\n")
@@ -210,6 +208,7 @@ func Generate(t interface {
 			t.Log("\n" + buf.String())
 		}
 	}
+	return nil
 }
 
 type funcCode interface {
