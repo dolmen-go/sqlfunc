@@ -29,14 +29,17 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"testing"
 	"text/template"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/packages"
 )
 
-func Generate(t testing.TB, patterns ...string) {
+func Generate(t interface {
+	Fatalf(format string, args ...any)
+	Log(args ...any)
+	Logf(format string, args ...any)
+}, patterns ...string) {
 	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
 
 	cfg := &packages.Config{
