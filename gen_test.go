@@ -33,7 +33,7 @@ func dumpDir(ffs fs.FS, path string) (string, error) {
 	return buf.String(), nil
 }
 
-func TestScanSrc(t *testing.T) {
+func TestGenerate(t *testing.T) {
 	fs, err := sqlfuncgen.Generate(t, "pattern=.")
 	if err != nil {
 		t.Fatal("Generate:", err)
