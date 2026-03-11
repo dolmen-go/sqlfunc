@@ -259,8 +259,8 @@ func (gen *Generator) generateCode() (string, error) {
 		for _, p := range paths {
 			imp := gen.Imports[p]
 			// TODO(dolmen) handle more shortcut cases
-			if imp.Name() == imp.Path() {
-				fmt.Fprintf(&buf, "\t%q\n", imp.Path())
+			if imp == nil || imp.Name() == imp.Path() {
+				fmt.Fprintf(&buf, "\t%q\n", p)
 			} else {
 				fmt.Fprintf(&buf, "\t%s %q\n", imp.Name(), imp.Path())
 			}
@@ -401,6 +401,11 @@ func (g *Generator) genForEach(_ string, sig *types.Signature) (funcCode, error)
 		name := "v" + strconv.Itoa(i)
 		vars[i] = name + " " + types.TypeString(typ, g.qualifier)
 		args[i] = name
+	}
+
+	// TODO(dolmen) Fix this hack needed to use sqlfunc.Break
+	if withBool {
+		g.Imports["github.com/dolmen-go/sqlfunc"] = nil
 	}
 
 	code := funcCodeForEach{
