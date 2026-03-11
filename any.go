@@ -48,6 +48,12 @@ func checkFnPtr(fnPtr any) reflect.Type {
 // ForEach is same as [ForEach].
 func (AnyAPI) ForEach(rows *sql.Rows, callback any) error {
 	fnType := reflect.TypeOf(callback)
+	if fnType.Kind() != reflect.Func {
+		panic("callback must be a func")
+	}
+	if reflect.ValueOf(callback).IsNil() {
+		panic("callback must be non-nil")
+	}
 	f := registryForEach(fnType)
 	switch f := f.(type) {
 	case func(any) func(rows *sql.Rows) error:

@@ -120,6 +120,12 @@ func doScan(fnType reflect.Type, fnPtr any) {
 // rows are closed before returning.
 func ForEach[Func any](rows *sql.Rows, callback Func) error {
 	fnType := reflect.TypeFor[Func]()
+	if fnType.Kind() != reflect.Func {
+		panic("callback must be a func")
+	}
+	if reflect.ValueOf(callback).IsNil() {
+		panic("callback must be non-nil")
+	}
 	f := registryForEach(fnType)
 	switch f := f.(type) {
 	case func(Func) func(rows *sql.Rows) error:
@@ -134,13 +140,6 @@ func ForEach[Func any](rows *sql.Rows, callback Func) error {
 }
 
 func dynamicForEach(rows *sql.Rows, fnType reflect.Type, fn any) error {
-	if fnType.Kind() != reflect.Func {
-		panic("callback must be a func")
-	}
-	fnValue := reflect.ValueOf(fn)
-	if fnValue.IsNil() {
-		panic("callback must be non-nil")
-	}
 	numIn := fnType.NumIn()
 	if numIn == 0 {
 		panic("callback must accept at least one argument")
