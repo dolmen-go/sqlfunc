@@ -222,13 +222,26 @@ type Generator struct {
 
 func (gen *Generator) generateCode() (string, error) {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "//go:build sqlfunc_registry_on || !sqlfunc_registry_off\n\npackage %s\n\n"+`import "github.com/dolmen-go/sqlfunc/sqlfuncregistry"`+"\n\n", gen.Pkg.Name)
+	fmt.Fprintf(&buf, ``+
+		"//go:build sqlfunc_registry_on || !sqlfunc_registry_off\n"+
+		"\n"+
+		"package %s\n"+
+		"\n"+
+		`import "github.com/dolmen-go/sqlfunc/sqlfuncregistry"`+"\n"+
+		"\n",
+		gen.Pkg.Name)
 
 	if len(gen.Imports) > 0 {
 		buf.WriteString("import (\n")
-		// TODO sort imports for deterministic output
-		for _, imp := range gen.Imports {
-			fmt.Fprintf(&buf, "\t%s %q\n", imp.Name(), imp.Path())
+		paths := slices.Sorted(maps.Keys(gen.Imports))
+		for _, p := range paths {
+			imp := gen.Imports[p]
+			// TODO(dolmen) handle more shortcut cases
+			if imp.Name() == imp.Path() {
+				fmt.Fprintf(&buf, "\t%q\n", imp.Path())
+			} else {
+				fmt.Fprintf(&buf, "\t%s %q\n", imp.Name(), imp.Path())
+			}
 		}
 		buf.WriteString(")\n")
 	}
