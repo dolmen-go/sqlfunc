@@ -35,7 +35,7 @@ func ForEach[Func any, Scan func(*sql.Rows, Func) error](scan Scan) {
 }
 
 func Scan[Func any](f Func) {
-	registry.Scan.Register(reflect.TypeFor[Func](), reflect.ValueOf(f))
+	registry.Scan.Register(reflect.TypeFor[Func](), f)
 }
 
 func Exec[Func any](f func(stmt *sql.Stmt, fnPtr any)) {
