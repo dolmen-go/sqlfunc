@@ -24,6 +24,9 @@ func dumpDir(ffs fs.FS, path string) (string, error) {
 		}
 		fmt.Fprintf(&buf, "\033[1m-- %s --\033[m\n", de.Name())
 		f, err := ffs.Open(filepath.Join(path, de.Name()))
+		if err != nil {
+			return "", err
+		}
 		if _, err = io.Copy(&buf, f); err != nil {
 			f.Close()
 			return "", fmt.Errorf("%s: %w", de.Name(), err)
