@@ -183,29 +183,11 @@ func Generate(t interface {
 		}
 
 		if len(gen.Funcs) > 0 {
-			var buf bytes.Buffer
-			fmt.Fprintf(&buf, "//go:build sqlfunc_registry_on || !sqlfunc_registry_off\n\npackage %s\n\n"+`import "github.com/dolmen-go/sqlfunc/sqlfuncregistry"`+"\n\n", pkg.Name)
-
-			if len(gen.Imports) > 0 {
-				buf.WriteString("import (\n")
-				// TODO sort imports for deterministic output
-				for _, imp := range gen.Imports {
-					fmt.Fprintf(&buf, "\t%s %q\n", imp.Name(), imp.Path())
-				}
-				buf.WriteString(")\n")
+			code, err := gen.generateCode()
+			if err != nil {
+				return err
 			}
-
-			buf.WriteString("\nfunc init() {")
-			keys := slices.Collect(maps.Keys(gen.Funcs))
-			slices.Sort(keys)
-			for _, k := range keys {
-				if err := printFuncCode(&buf, gen.Funcs[k]); err != nil {
-					return fmt.Errorf("%s: %w", k, err)
-				}
-			}
-			buf.WriteString("}\n")
-
-			t.Log("\n" + buf.String())
+			t.Log("\n", code)
 		}
 	}
 	return nil
@@ -236,6 +218,32 @@ type Generator struct {
 	Imports map[string]*types.Package
 
 	Funcs map[string]funcCode
+}
+
+func (gen *Generator) generateCode() (string, error) {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "//go:build sqlfunc_registry_on || !sqlfunc_registry_off\n\npackage %s\n\n"+`import "github.com/dolmen-go/sqlfunc/sqlfuncregistry"`+"\n\n", gen.Pkg.Name)
+
+	if len(gen.Imports) > 0 {
+		buf.WriteString("import (\n")
+		// TODO sort imports for deterministic output
+		for _, imp := range gen.Imports {
+			fmt.Fprintf(&buf, "\t%s %q\n", imp.Name(), imp.Path())
+		}
+		buf.WriteString(")\n")
+	}
+
+	buf.WriteString("\nfunc init() {")
+	keys := slices.Collect(maps.Keys(gen.Funcs))
+	slices.Sort(keys)
+	for _, k := range keys {
+		if err := printFuncCode(&buf, gen.Funcs[k]); err != nil {
+			return "", fmt.Errorf("%s: %w", k, err)
+		}
+	}
+	buf.WriteString("}\n")
+
+	return buf.String(), nil
 }
 
 // The qualifier function is used to determine how to print package-qualified type names in the generated code.
