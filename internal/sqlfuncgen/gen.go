@@ -36,10 +36,29 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func Generate(t interface {
-	Log(args ...any)
-	Logf(format string, args ...any)
-}, patterns ...string) (fs.FS, error) {
+type Logger = interface {
+	Println(args ...any)
+	Printf(format string, args ...any)
+}
+
+func NewLogger(println func(...any), printf func(format string, args ...any)) Logger {
+	return &logger{println, printf}
+}
+
+type logger struct {
+	println func(...any)
+	printf  func(format string, args ...any)
+}
+
+func (l *logger) Println(args ...any) {
+	l.println(args...)
+}
+
+func (l *logger) Printf(format string, args ...any) {
+	l.printf(format, args...)
+}
+
+func Generate(log Logger, patterns ...string) (fs.FS, error) {
 	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
 
 	cfg := &packages.Config{
@@ -61,7 +80,7 @@ func Generate(t interface {
 
 	// Lint each package we find.
 	for _, pkg := range pkgs {
-		t.Log("Package", pkg.Name)
+		log.Println("Package", pkg.Name)
 		ti := pkg.TypesInfo
 
 		gen := &Generator{
@@ -105,11 +124,11 @@ func Generate(t interface {
 					return
 				}
 
-				t.Logf("%s %s.%s",
+				log.Printf("%s %s.%s",
 					pkg.Fset.Position(c.Pos()),
 					path,
 					s.Sel.Name)
-				// t.Logf("%+v", c)
+				// t.Printf("%+v", c)
 
 				// Look at the last parameter
 				arg := c.Args[len(c.Args)-1]
@@ -122,7 +141,7 @@ func Generate(t interface {
 					// - identifier pointing to an interface{} variable, if calling sqlfunc.Any.ForEach
 					sig, isSig := ti.TypeOf(arg).(*types.Signature)
 					if !isSig {
-						t.Logf("%s %s.%s SKIP (arg 1 is not a func but %s)",
+						log.Printf("%s %s.%s SKIP (arg 1 is not a func but %s)",
 							pkg.Fset.Position(c.Pos()),
 							path,
 							s.Sel.Name,
@@ -131,7 +150,7 @@ func Generate(t interface {
 						return
 					}
 					if err := gen.add("ForEach", sig, (*Generator).genForEach); err != nil {
-						t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
+						log.Printf("%s %v", pkg.Fset.Position(c.Pos()), err)
 					}
 
 					// As the argument might be a func literal, we want to go deeper in the AST
@@ -141,7 +160,7 @@ func Generate(t interface {
 					//
 					fnPtrArg, ok := arg.(*ast.UnaryExpr)
 					if !ok || fnPtrArg.Op != token.AND {
-						t.Logf("%s %s.%s SKIP (arg %d is not a pointer)",
+						log.Printf("%s %s.%s SKIP (arg %d is not a pointer)",
 							pkg.Fset.Position(c.Pos()),
 							path,
 							s.Sel.Name,
@@ -151,7 +170,7 @@ func Generate(t interface {
 					}
 					ident := fnPtrArg.X.(*ast.Ident)
 					if ident.Obj.Kind != ast.Var {
-						t.Logf("%s %s.%s SKIP (arg %d is not the address (&) of a variable)",
+						log.Printf("%s %s.%s SKIP (arg %d is not the address (&) of a variable)",
 							pkg.Fset.Position(c.Pos()),
 							path,
 							s.Sel.Name,
@@ -162,7 +181,7 @@ func Generate(t interface {
 					typ := ti.ObjectOf(ident).Type()
 					sig, isSignature := typ.(*types.Signature)
 					if !isSignature {
-						t.Logf("%s %s.%s SKIP (%s is not function variable)",
+						log.Printf("%s %s.%s SKIP (%s is not function variable)",
 							pkg.Fset.Position(c.Pos()),
 							path,
 							s.Sel.Name,
@@ -178,7 +197,7 @@ func Generate(t interface {
 						build = (*Generator).genStmt
 					}
 					if err = gen.add(s.Sel.Name, sig, build); err != nil {
-						t.Logf("%s %v", pkg.Fset.Position(c.Pos()), err)
+						log.Printf("%s %v", pkg.Fset.Position(c.Pos()), err)
 					}
 				}
 				return
