@@ -28,17 +28,19 @@ import (
 // Two styles are available:
 //   - as pointer variables (like [sql.Rows.Scan]): func (rows *sql.Rows, pval1 *int, pval2 *string) error
 //   - as returned values (implies copies): func (rows *sql.Rows) (val1 int, val2 string, err error)
+//
+// The function created is a closure (it has state), so it must not be used in concurrent goroutines.
 func Scan[Func any](fnPtr *Func) {
 	if fnPtr == nil {
 		panic("fnPtr must be non-nil")
 	}
 	fnType := reflect.TypeFor[Func]()
-	doScan(fnType, reflect.ValueOf(fnPtr))
+	doScan(fnType, fnPtr)
 }
 
-func doScan(fnType reflect.Type, fnValue reflect.Value) {
-	if fn := registryScan(fnType); fn.IsValid() {
-		fnValue.Elem().Set(fn)
+func doScan(fnType reflect.Type, fnPtr any) {
+	if fn := registryScan(fnType); fn != nil {
+		reflect.ValueOf(fnPtr).Elem().Set(reflect.ValueOf(fn))
 		return
 	}
 
@@ -103,7 +105,9 @@ func doScan(fnType reflect.Type, fnValue reflect.Value) {
 			return out
 		}
 	}
-	fnValue.Elem().Set(reflect.MakeFunc(fnType, fn))
+	// Note: we don't store that func in the registry because they
+	// are closures with state, so they can't be used concurrently.
+	reflect.ValueOf(fnPtr).Elem().Set(reflect.MakeFunc(fnType, fn))
 }
 
 // ForEach iterates an [*sql.Rows], scans the values of the row and calls the given callback function with the values.

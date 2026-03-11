@@ -36,12 +36,7 @@ func registryForEach(typ reflect.Type) any {
 	return registry.ForEach.Get(typ)
 }
 
-func registrySetScan(typ reflect.Type, f reflect.Value) {
-	// Register asynchronously
-	go registry.Scan.Register(typ, f)
-}
-
-func registryScan(typ reflect.Type) reflect.Value {
+func registryScan(typ reflect.Type) any {
 	return registry.Scan.Get(typ)
 }
 

@@ -32,16 +32,16 @@ func TestScan(t *testing.T) {
 	// The real tests are in sqlfunc package.
 
 	typ := reflect.TypeOf(scanInt)
-	if Scan.Get(typ).IsValid() {
+	if Scan.Get(typ) != nil {
 		t.Errorf("registry is expected to be empty")
 	}
 	v := reflect.ValueOf(scanInt)
 	Scan.Register(typ, v)
 
 	v2 := Scan.Get(typ)
-	if !v2.IsValid() {
+	if v2 == nil {
 		t.Logf("registry is disabled (sqlfunc_registry_off)")
-	} else if v2.Type() != v.Type() {
+	} else if reflect.TypeOf(v2) != reflect.TypeOf(v) {
 		t.Errorf("not same type")
 	}
 }

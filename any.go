@@ -34,7 +34,7 @@ type AnyAPI [0]struct{}
 // the function signature is not known at compile time.
 var Any AnyAPI
 
-func checkFnPtr(fnPtr any) reflect.Value {
+func checkFnPtr(fnPtr any) reflect.Type {
 	fnValue := reflect.ValueOf(fnPtr)
 	if fnValue.Kind() != reflect.Pointer {
 		panic("fnPtr must be a pointer to a *func* variable")
@@ -42,7 +42,7 @@ func checkFnPtr(fnPtr any) reflect.Value {
 	if fnValue.IsNil() {
 		panic("fnPtr must be non-nil")
 	}
-	return fnValue
+	return fnValue.Type().Elem()
 }
 
 // ForEach is same as [ForEach].
@@ -63,8 +63,7 @@ func (AnyAPI) ForEach(rows *sql.Rows, callback any) error {
 
 // Scan is same as [Scan].
 func (AnyAPI) Scan(fnPtr any) {
-	fnValue := checkFnPtr(fnPtr)
-	doScan(fnValue.Type().Elem(), fnValue)
+	doScan(checkFnPtr(fnPtr), fnPtr)
 }
 
 // Exec is same as [Exec].
