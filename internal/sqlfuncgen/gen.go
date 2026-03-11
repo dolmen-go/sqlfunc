@@ -24,6 +24,7 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"io/fs"
 	"maps"
 	"reflect"
 	"slices"
@@ -38,7 +39,7 @@ import (
 func Generate(t interface {
 	Log(args ...any)
 	Logf(format string, args ...any)
-}, patterns ...string) error {
+}, patterns ...string) (fs.FS, error) {
 	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
 
 	cfg := &packages.Config{
@@ -49,12 +50,14 @@ func Generate(t interface {
 	pkgs, err := packages.Load(cfg, patterns...)
 	// pkgs, err := packages.Load(cfg, "file=./stmt_test.go")
 	if err != nil {
-		return fmt.Errorf("load: %w", err)
+		return nil, fmt.Errorf("load: %w", err)
 	}
 	// TODO(dolmen) Don't print directly on os.Stderr.
 	if n := packages.PrintErrors(pkgs); n > 0 {
-		return fmt.Errorf("%d errors.", n)
+		return nil, fmt.Errorf("%d errors.", n)
 	}
+
+	genfs := make(genFS)
 
 	// Lint each package we find.
 	for _, pkg := range pkgs {
@@ -183,14 +186,11 @@ func Generate(t interface {
 		}
 
 		if len(gen.Funcs) > 0 {
-			code, err := gen.generateCode()
-			if err != nil {
-				return err
-			}
-			t.Log("\n", code)
+			// TODO(dolmen) generate proper filenames.
+			genfs.addFile("sqlfunc_test.go", gen)
 		}
 	}
-	return nil
+	return genfs, nil
 }
 
 type funcCode interface {
