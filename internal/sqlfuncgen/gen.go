@@ -540,7 +540,8 @@ func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, er
 		}
 		if nResults == 2 && results.At(0).Type().String() != "database/sql.Result" {
 			return nil, errors.New(errOut)
-		} else {
+		}
+		if nResults == 1 {
 			outDecls = []string{"err error"}
 		}
 		if results.At(nResults-1).Type().String() != "error" {
