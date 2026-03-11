@@ -22,15 +22,14 @@ import (
 	"io"
 	iofs "io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 )
 
 // Standard: https://go.dev/s/generatedcode
 var generatedFileRE = regexp.MustCompile(`(?m)^// Code generated .* DO NOT EDIT\.$`)
 
-func IsFileGenerated(path string) (bool, error) {
-	f, err := os.Open(path)
+func IsFileGenerated(root *os.Root, path string) (bool, error) {
+	f, err := root.Open(path)
 	if err != nil {
 		return false, err
 	}
@@ -39,7 +38,7 @@ func IsFileGenerated(path string) (bool, error) {
 	return generatedFileRE.MatchReader(r), nil
 }
 
-func WriteFS(dest string, fs iofs.FS) error {
+func WriteFS(root *os.Root, fs iofs.FS) error {
 	dir, err := iofs.ReadDir(fs, ".")
 	if err != nil {
 		return err
@@ -49,8 +48,8 @@ func WriteFS(dest string, fs iofs.FS) error {
 			return fmt.Errorf("%s: directories are not handled", f.Name())
 		}
 
-		path := filepath.Join(dest, f.Name())
-		isGenerated, err := IsFileGenerated(path)
+		path := f.Name()
+		isGenerated, err := IsFileGenerated(root, path)
 		if !os.IsNotExist(err) {
 			if err != nil {
 				return fmt.Errorf("%s: %w", path, err)
@@ -64,7 +63,7 @@ func WriteFS(dest string, fs iofs.FS) error {
 		if err != nil {
 			return fmt.Errorf("open %s: %w", f.Name(), err)
 		}
-		out, err := os.Create(path)
+		out, err := root.Create(path)
 		if err != nil {
 			return fmt.Errorf("create %s: %w", path, err)
 		}

@@ -37,7 +37,12 @@ func main() {
 		log.Fatal("generate: ", err)
 	}
 
-	err = genutils.WriteFS(".", fsys)
+	root, err := os.OpenRoot(".")
+	if err != nil {
+		log.Fatal("open root: ", err)
+	}
+
+	err = genutils.WriteFS(root, fsys)
 
 	if err != nil {
 		log.Fatal("write: ", err)
