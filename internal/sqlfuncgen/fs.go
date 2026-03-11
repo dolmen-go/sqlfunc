@@ -29,6 +29,12 @@ import (
 type genFS map[dirEntry]*Generator
 
 func (genfs genFS) addFile(name string, gen *Generator) {
+	if !fs.ValidPath(name) {
+		panic("not a valid path")
+	}
+	if strings.Contains(name, "/") {
+		panic("subdirectories are not supported")
+	}
 	genfs[dirEntry(name)] = gen
 }
 
