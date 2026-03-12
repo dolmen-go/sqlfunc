@@ -160,11 +160,12 @@ func Generate(log Logger, patterns ...string) (fs.FS, error) {
 					//
 					fnPtrArg, ok := arg.(*ast.UnaryExpr)
 					if !ok || fnPtrArg.Op != token.AND {
-						log.Printf("%s %s.%s SKIP (arg %d is not a pointer)",
+						log.Printf("%s %s.%s SKIP (arg %d is not a pointer but %s)",
 							pkg.Fset.Position(c.Pos()),
 							path,
 							s.Sel.Name,
 							len(c.Args)-1,
+							reflect.TypeOf(arg),
 						)
 						return
 					}
@@ -179,15 +180,27 @@ func Generate(log Logger, patterns ...string) (fs.FS, error) {
 						return
 					}
 					typ := ti.ObjectOf(ident).Type()
-					sig, isSignature := typ.(*types.Signature)
-					if !isSignature {
-						log.Printf("%s %s.%s SKIP (%s is not function variable)",
-							pkg.Fset.Position(c.Pos()),
-							path,
-							s.Sel.Name,
-							ident.Name,
-						)
-						return
+					var sig *types.Signature
+				resolveNames:
+					for {
+						switch typX := typ.(type) {
+						case *types.Signature:
+							sig = typX
+							break resolveNames
+						case *types.Named:
+							typ = typX.Underlying()
+						case *types.Alias:
+							typ = typX.Underlying()
+						default:
+							log.Printf("%s %s.%s SKIP (%s is not function variable but %s)",
+								pkg.Fset.Position(c.Pos()),
+								path,
+								s.Sel.Name,
+								ident.Name,
+								typ,
+							)
+							return
+						}
 					}
 
 					var build func(*Generator, string, *types.Signature) (funcCode, error)
