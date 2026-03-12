@@ -24,6 +24,22 @@ import (
 	"go/types"
 )
 
+func suffixFromPkgID(pkgID string) string {
+	pkgIDPath, _, isTest := strings.Cut(pkgID, " [")
+
+	if !isTest { // package pkg
+		return ".go"
+	}
+
+	// Test files
+
+	if strings.HasSuffix(pkgIDPath, "_test") { // package pkg_test
+		return "_t_test.go"
+	}
+
+	return "_test.go"
+}
+
 // alignLineNum tweaks a [text/template] with a long multiline comment that
 // allows to align the source line number with the line number from where this
 // function is called.

@@ -80,7 +80,7 @@ func Generate(log Logger, patterns ...string) (fs.FS, error) {
 
 	// Lint each package we find.
 	for _, pkg := range pkgs {
-		log.Println("Package", pkg.Name)
+		// log.Println("PackageName:", pkg.Name, "ID:", pkg.ID)
 		ti := pkg.TypesInfo
 
 		gen := &Generator{
@@ -218,8 +218,10 @@ func Generate(log Logger, patterns ...string) (fs.FS, error) {
 		}
 
 		if len(gen.Funcs) > 0 {
-			// TODO(dolmen) generate proper filenames.
-			genfs.addFile("sqlfunc_test.go", gen)
+			// sqlfunc_gen.go
+			// sqlfunc_gen_test.go
+			// sqlfunc_gen_t_test.go
+			genfs.addFile("sqlfunc_gen"+suffixFromPkgID(pkg.ID), gen)
 		}
 	}
 	return genfs, nil

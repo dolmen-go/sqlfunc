@@ -25,6 +25,20 @@ import (
 	"testing"
 )
 
+func TestSuffixFromPkgID(t *testing.T) {
+	for _, test := range []*[2]string{
+		{"github.com/dolmen-go/sqlfunc", ".go"},
+		{"github.com/dolmen-go/sqlfunc [github.com/dolmen-go/sqlfunc.test]", "_test.go"},
+		{"github.com/dolmen-go/sqlfunc_test [github.com/dolmen-go/sqlfunc.test]", "_t_test.go"},
+	} {
+		in, expected := test[0], test[1]
+		got := suffixFromPkgID(in)
+		if got != expected {
+			t.Errorf("%q: got %q, expected %q", in, got, expected)
+		}
+	}
+}
+
 func TestStripNames(t *testing.T) {
 	tests := []struct {
 		name     string
