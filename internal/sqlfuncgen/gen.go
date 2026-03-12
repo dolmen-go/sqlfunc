@@ -18,6 +18,7 @@ package sqlfuncgen
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -58,19 +59,20 @@ func (l *logger) Printf(format string, args ...any) {
 	l.printf(format, args...)
 }
 
-func Generate(log Logger, patterns ...string) (fs.FS, error) {
+func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error) {
 	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
 
 	cfg := &packages.Config{
-		Mode:  packages.NeedDeps | packages.NeedImports | packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
-		Tests: true,
+		Mode:    packages.NeedDeps | packages.NeedImports | packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Tests:   true,
+		Context: ctx,
 	}
 
 	pkgs, err := packages.Load(cfg, patterns...)
-	// pkgs, err := packages.Load(cfg, "file=./stmt_test.go")
 	if err != nil {
 		return nil, fmt.Errorf("load: %w", err)
 	}
+
 	// TODO(dolmen) Don't print directly on os.Stderr.
 	if n := packages.PrintErrors(pkgs); n > 0 {
 		return nil, fmt.Errorf("%d errors.", n)

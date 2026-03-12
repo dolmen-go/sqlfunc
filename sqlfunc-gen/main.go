@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -31,7 +32,7 @@ func main() {
 	if len(os.Args) > 1 {
 		log.Fatal("no flags expected.")
 	}
-	fsys, err := sqlfuncgen.Generate(sqlfuncgen.NewLogger(log.Println, log.Printf), "pattern=.")
+	fsys, err := sqlfuncgen.Generate(context.Background(), sqlfuncgen.NewLogger(log.Println, log.Printf), "pattern=.")
 
 	if err != nil {
 		log.Fatal("generate: ", err)
