@@ -674,6 +674,7 @@ func benchStmt(b TestingB) {
 		type queryFunc func(ctx context.Context) (*sql.Rows, error)
 
 		b.Run("Manual", func(b TestingB) {
+			b.ReportAllocs()
 			start := time.Now()
 			stmt, err := db.PrepareContext(b.Context(), query)
 			b.Log("db.Prepare time:", time.Since(start))
@@ -699,6 +700,7 @@ func benchStmt(b TestingB) {
 		})
 
 		runQuery := func(b TestingB) {
+			b.ReportAllocs()
 			var queryNames queryFunc
 			start := time.Now()
 			closeQueryNames, err := sqlfunc.Query(
@@ -738,6 +740,7 @@ func benchStmt(b TestingB) {
 		type queryRowFunc func(ctx context.Context, name string) (string, error)
 
 		b.Run("Manual", func(b TestingB) {
+			b.ReportAllocs()
 			start := time.Now()
 			stmt, err := db.PrepareContext(b.Context(), query)
 			b.Log("db.Prepare time:", time.Since(start))
@@ -753,6 +756,7 @@ func benchStmt(b TestingB) {
 		})
 
 		runQueryRow := func(b TestingB) {
+			b.ReportAllocs()
 			var queryName queryRowFunc
 			start := time.Now()
 			closeQueryName, err := sqlfunc.QueryRow(b.Context(), db, query, &queryName)
@@ -783,6 +787,7 @@ func benchStmt(b TestingB) {
 		type execFunc func(ctx context.Context, name string) (sql.Result, error)
 
 		b.Run("Manual", func(b TestingB) {
+			b.ReportAllocs()
 			start := time.Now()
 			stmt, err := db.PrepareContext(b.Context(), query)
 			b.Log("db.Prepare time:", time.Since(start))
@@ -797,6 +802,7 @@ func benchStmt(b TestingB) {
 		})
 
 		runExec := func(b TestingB) {
+			b.ReportAllocs()
 			var insert execFunc
 			start := time.Now()
 			closeInsert, err := sqlfunc.Exec(b.Context(), db, query, &insert)
