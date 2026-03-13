@@ -32,9 +32,12 @@ func main() {
 	if len(os.Args) > 1 {
 		log.Fatal("no flags expected.")
 	}
-	fsys, err := sqlfuncgen.Generate(context.Background(), sqlfuncgen.NewLogger(log.Println, log.Printf), "pattern=.")
 
+	fsys, err := sqlfuncgen.Generate(context.Background(), sqlfuncgen.NewLogger(log.Println, log.Printf), "pattern=.")
 	if err != nil {
+		if err == context.Canceled {
+			return
+		}
 		log.Fatal("generate: ", err)
 	}
 
@@ -44,7 +47,6 @@ func main() {
 	}
 
 	err = genutils.WriteFS(root, fsys)
-
 	if err != nil {
 		log.Fatal("write: ", err)
 	}
