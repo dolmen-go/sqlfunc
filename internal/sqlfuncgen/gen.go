@@ -78,7 +78,7 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 		return nil, fmt.Errorf("%d errors.", n)
 	}
 
-	genfs := make(genFS)
+	var genfs genFS
 
 	// Lint each package we find.
 	for _, pkg := range pkgs {
