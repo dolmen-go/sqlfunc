@@ -55,8 +55,11 @@ func TestIsGeneratedFile(t *testing.T) {
 
 func TestWriteFS(t *testing.T) {
 	fs := fstest.MapFS{
-		"foo.txt": &fstest.MapFile{Mode: 0666},
-		"bar.txt": &fstest.MapFile{Mode: 0666},
+		"foo.txt": {Mode: 0666},
+		"bar.txt": {Mode: 0666},
+	}
+	if err := fstest.TestFS(fs, "foo.txt", "bar.txt"); err != nil {
+		t.Fatal(err)
 	}
 
 	outDir, err := os.OpenRoot(t.TempDir())
@@ -75,5 +78,9 @@ func TestWriteFS(t *testing.T) {
 			t.Errorf("%s: %v", f, err)
 			continue
 		}
+	}
+
+	if err := fstest.TestFS(outDir.FS(), "foo.txt", "bar.txt"); err != nil {
+		t.Fatal(err)
 	}
 }

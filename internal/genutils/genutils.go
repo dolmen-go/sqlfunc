@@ -46,20 +46,20 @@ func WriteFS(root interface {
 	if err != nil {
 		return err
 	}
+	rootFS := root.FS()
 	for _, f := range dir {
 		if f.IsDir() {
 			return fmt.Errorf("%s: directories are not handled", f.Name())
 		}
 
 		path := f.Name()
-		isGenerated, err := IsFileGenerated(root.FS(), path)
-		if !os.IsNotExist(err) {
-			if err != nil {
-				return fmt.Errorf("%s: %w", path, err)
-			}
+		isGenerated, err := IsFileGenerated(rootFS, path)
+		if err == nil {
 			if !isGenerated {
 				return fmt.Errorf("%s: not a generated file (safety belt)", path)
 			}
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("%s: %w", path, err)
 		}
 
 		fi, err := fs.Open(f.Name())
