@@ -25,6 +25,10 @@ import (
 )
 
 func suffixFromPkgID(pkgID string) string {
+	// The package id formats for various go build systems are documented here:
+	// https://github.com/bazel-contrib/rules_go/wiki/Editor-and-tool-integration#tests
+	// Here we only support "go list". See TestSuffixFromPkgID.
+
 	pkgIDPath, _, isTest := strings.Cut(pkgID, " [")
 
 	if !isTest { // package pkg
@@ -34,7 +38,7 @@ func suffixFromPkgID(pkgID string) string {
 	// Test files
 
 	if strings.HasSuffix(pkgIDPath, "_test") { // package pkg_test
-		return "_t_test.go"
+		return "_x_test.go" // "x" like "eXternal"
 	}
 
 	return "_test.go"
