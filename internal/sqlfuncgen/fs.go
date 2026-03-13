@@ -46,13 +46,19 @@ func (genfs genFS) Open(name string) (fs.File, error) {
 
 	if name == "." {
 		// TODO forward to ReadDir
-		return nil, &fs.PathError{Op: "read", Path: name, Err: errors.New("FIXME use fs.ReadDirFS")}
+		return nil, &fs.PathError{Op: "open", Path: name, Err: errors.New("FIXME use fs.ReadDirFS")}
 	}
 
-	return nil, nil
+	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 }
 
 func (genfs genFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if genfs == nil {
+		if name == "." {
+			return nil, nil
+		}
+		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
+	}
 	names := slices.Sorted(maps.Keys(genfs))
 	de := make([]fs.DirEntry, len(names))
 	for i := range names {
