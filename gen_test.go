@@ -3,17 +3,18 @@ package sqlfunc_test
 import (
 	"fmt"
 	"io"
-	"io/fs"
+	iofs "io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/dolmen-go/sqlfunc/internal/sqlfuncgen"
 )
 
 // Dump fs dir in txtar style
-func dumpDir(ffs fs.FS, path string) (string, error) {
-	entries, err := fs.ReadDir(ffs, path)
+func dumpDir(fs iofs.FS, path string) (string, error) {
+	entries, err := iofs.ReadDir(fs, path)
 	if err != nil {
 		return "", err
 	}
@@ -23,7 +24,7 @@ func dumpDir(ffs fs.FS, path string) (string, error) {
 			continue
 		}
 		fmt.Fprintf(&buf, "\033[1m-- %s --\033[m\n", de.Name())
-		f, err := ffs.Open(filepath.Join(path, de.Name()))
+		f, err := fs.Open(filepath.Join(path, de.Name()))
 		if err != nil {
 			return "", err
 		}
@@ -40,6 +41,9 @@ func TestGenerate(t *testing.T) {
 	fs, err := sqlfuncgen.Generate(t.Context(), sqlfuncgen.NewLogger(t.Log, t.Logf), "pattern=.")
 	if err != nil {
 		t.Fatal("Generate:", err)
+	}
+	if err := fstest.TestFS(fs, "sqlfunc_gen_x_test.go"); err != nil {
+		t.Fatal(err)
 	}
 	dump, err := dumpDir(fs, ".")
 	if err != nil {

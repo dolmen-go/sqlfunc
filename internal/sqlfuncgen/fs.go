@@ -17,7 +17,6 @@ limitations under the License.
 package sqlfuncgen
 
 import (
-	"errors"
 	"io"
 	"io/fs"
 	"maps"
@@ -48,8 +47,11 @@ func (genfs genFS) Open(name string) (fs.File, error) {
 	}
 
 	if name == "." {
-		// TODO forward to ReadDir
-		return nil, &fs.PathError{Op: "open", Path: name, Err: errors.New("FIXME use fs.ReadDirFS")}
+		root := &rootDir{dirEntry: ".", fs: genfs}
+		if genfs == nil { // empty map
+			root.entries = []fs.DirEntry{}
+		}
+		return root, nil
 	}
 
 	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
@@ -81,11 +83,15 @@ func (de dirEntry) Name() string {
 	return string(de)
 }
 
-func (_ dirEntry) IsDir() bool {
-	return false
+func (d dirEntry) IsDir() bool {
+	return d == "."
 }
-func (_ dirEntry) Type() fs.FileMode {
-	return 0444
+
+func (d dirEntry) Type() fs.FileMode {
+	if d.IsDir() { // rootDir
+		return fs.ModeDir
+	}
+	return d.Mode().Type()
 }
 
 func (de dirEntry) Info() (fs.FileInfo, error) {
@@ -94,12 +100,15 @@ func (de dirEntry) Info() (fs.FileInfo, error) {
 
 // Methods for fs.FileInfo
 
-func (_ dirEntry) Mode() fs.FileMode {
+func (d dirEntry) Mode() fs.FileMode {
+	if d.IsDir() { // rootDir
+		return fs.ModeDir | 0555
+	}
 	return 0444
 }
 
 func (_ dirEntry) ModTime() time.Time {
-	return time.Now()
+	return time.Now().Round(time.Hour).Add(-12 * time.Hour)
 }
 
 func (_ dirEntry) Size() int64 {
@@ -139,4 +148,46 @@ func (f *file) Read(b []byte) (int, error) {
 func (f *file) Close() error {
 	f.r = nil
 	return nil
+}
+
+type rootDir struct {
+	dirEntry
+	fs      genFS
+	entries []fs.DirEntry
+}
+
+func (d *rootDir) Stat() (fs.FileInfo, error) {
+	return d.dirEntry.Info()
+}
+
+func (_ rootDir) Read(b []byte) (int, error) {
+	return -1, fs.ErrInvalid
+}
+
+func (d *rootDir) Close() error {
+	d.fs = nil
+	d.entries = nil
+	return nil
+}
+
+func (d *rootDir) ReadDir(n int) ([]fs.DirEntry, error) {
+	if d.entries == nil {
+		if d.fs == nil {
+			return nil, fs.ErrClosed
+		}
+		d.entries, _ = d.fs.ReadDir(string(d.dirEntry))
+	}
+	if n <= 0 {
+		entries := d.entries
+		d.entries = []fs.DirEntry{}
+		return entries, nil
+	}
+	if len(d.entries) == 0 {
+		d.Close()
+		return nil, io.EOF
+	}
+	m := min(n, len(d.entries))
+	entries := d.entries[:m:m]
+	d.entries = d.entries[m:]
+	return entries, nil
 }
