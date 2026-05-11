@@ -115,28 +115,16 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 					return
 				}
 
-				obj := ti.ObjectOf(s.Sel)
-				if obj == nil {
+				// package functions
+				if _, isSelector := ti.Selections[s]; isSelector {
 					return
 				}
-				pkgObj := obj.Pkg()
-				if pkgObj == nil || pkgObj.Path() != "github.com/dolmen-go/sqlfunc" {
+				pkgName := ti.Uses[s.X.(*ast.Ident)].(*types.PkgName)
+				path := pkgName.Imported().Path()
+
+				if path != "github.com/dolmen-go/sqlfunc" {
 					return
 				}
-
-				// If it's a method, verify it's on AnyAPI
-				if sig, ok := obj.Type().(*types.Signature); ok && sig.Recv() != nil {
-					recvType := sig.Recv().Type()
-					if ptr, ok := recvType.(*types.Pointer); ok {
-						recvType = ptr.Elem()
-					}
-					named, ok := recvType.(*types.Named)
-					if !ok || named.Obj().Name() != "AnyAPI" {
-						return
-					}
-				}
-
-				path := "github.com/dolmen-go/sqlfunc"
 
 				log.Printf("%s %s.%s",
 					pkg.Fset.Position(c.Pos()),
