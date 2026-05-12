@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//go:generate go run ./sqlfunc-gen
+//go:generate go tool sqlfunc-gen
 
 // Package sqlfunc provides utilities to bind SQL statements to strongly-typed Go functions.
 //
