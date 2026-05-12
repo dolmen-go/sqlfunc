@@ -115,21 +115,44 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 					return
 				}
 
-				// package functions
-				if _, isSelector := ti.Selections[s]; isSelector {
+				obj := ti.ObjectOf(s.Sel)
+				if obj == nil {
 					return
 				}
-				pkgName := ti.Uses[s.X.(*ast.Ident)].(*types.PkgName)
-				path := pkgName.Imported().Path()
-
-				if path != "github.com/dolmen-go/sqlfunc" {
+				pkgObj := obj.Pkg()
+				const pkgPath = "github.com/dolmen-go/sqlfunc"
+				if pkgObj == nil || pkgObj.Path() != pkgPath {
 					return
 				}
 
-				log.Printf("%s %s.%s",
+				// If it's a method, verify it's attached to AnyAPI
+				if sig, ok := obj.Type().(*types.Signature); ok && sig.Recv() != nil {
+					recvType := sig.Recv().Type()
+					if ptr, ok := recvType.(*types.Pointer); ok {
+						recvType = ptr.Elem()
+					}
+					named, ok := recvType.(*types.Named)
+					if !ok || named.Obj().Name() != "AnyAPI" {
+						return
+					}
+				}
+
+				var fmtSel func(*ast.SelectorExpr) string
+				fmtSel = func(s *ast.SelectorExpr) string {
+					switch x := s.X.(type) {
+					case *ast.SelectorExpr:
+						return fmtSel(x) + "." + s.Sel.Name
+					case *ast.Ident:
+						return x.Name + "." + s.Sel.Name
+					default:
+						return "???." + s.Sel.Name
+					}
+				}
+				sTxt := fmtSel(s)
+
+				log.Printf("%s %s",
 					pkg.Fset.Position(c.Pos()),
-					path,
-					s.Sel.Name)
+					sTxt)
 				// t.Printf("%+v", c)
 
 				// Look at the last parameter
@@ -143,16 +166,15 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 					// - identifier pointing to an interface{} variable, if calling sqlfunc.Any.ForEach
 					sig, isSig := ti.TypeOf(arg).(*types.Signature)
 					if !isSig {
-						log.Printf("%s %s.%s SKIP (arg 1 is not a func but %s)",
+						log.Printf("%s %s SKIP (arg 1 is not a func but %s)",
 							pkg.Fset.Position(c.Pos()),
-							path,
-							s.Sel.Name,
+							sTxt,
 							ti.TypeOf(arg).String(),
 						)
 						return
 					}
 					if err := gen.add("ForEach", sig, (*Generator).genForEach); err != nil {
-						log.Printf("%s %v", pkg.Fset.Position(c.Pos()), err)
+						log.Printf("%s %s SKIP (%v)", pkg.Fset.Position(c.Pos()), sTxt, err)
 					}
 
 					// As the argument might be a func literal, we want to go deeper in the AST
@@ -162,10 +184,9 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 					//
 					fnPtrArg, ok := arg.(*ast.UnaryExpr)
 					if !ok || fnPtrArg.Op != token.AND {
-						log.Printf("%s %s.%s SKIP (arg %d is not a pointer but %s)",
+						log.Printf("%s %s SKIP (arg %d is not a pointer but %s)",
 							pkg.Fset.Position(c.Pos()),
-							path,
-							s.Sel.Name,
+							sTxt,
 							len(c.Args)-1,
 							reflect.TypeOf(arg),
 						)
@@ -173,10 +194,9 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 					}
 					ident := fnPtrArg.X.(*ast.Ident)
 					if ident.Obj.Kind != ast.Var {
-						log.Printf("%s %s.%s SKIP (arg %d is not the address (&) of a variable)",
+						log.Printf("%s %s SKIP (arg %d is not the address (&) of a variable)",
 							pkg.Fset.Position(c.Pos()),
-							path,
-							s.Sel.Name,
+							sTxt,
 							len(c.Args)-1,
 						)
 						return
@@ -194,10 +214,9 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 						case *types.Alias:
 							typ = typX.Underlying()
 						default:
-							log.Printf("%s %s.%s SKIP (%s is not function variable but %s)",
+							log.Printf("%s %s SKIP (%s is not function variable but %s)",
 								pkg.Fset.Position(c.Pos()),
-								path,
-								s.Sel.Name,
+								sTxt,
 								ident.Name,
 								typ,
 							)
@@ -212,7 +231,7 @@ func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error
 						build = (*Generator).genStmt
 					}
 					if err = gen.add(s.Sel.Name, sig, build); err != nil {
-						log.Printf("%s %v", pkg.Fset.Position(c.Pos()), err)
+						log.Printf("%s %s SKIP (%v)", pkg.Fset.Position(c.Pos()), sTxt, err)
 					}
 				}
 				return

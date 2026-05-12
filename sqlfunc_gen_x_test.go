@@ -141,6 +141,14 @@ func init() {
 		},
 	)
 
+	sqlfuncregistry.Query[func(context.Context, string) (*sql.Rows, error)](
+		func(stmt *sql.Stmt, fnPtr any) {
+			*(fnPtr.(*func(context.Context, string) (*sql.Rows, error))) = func(ctx context.Context, in0 string) (*sql.Rows, error) {
+				return stmt.QueryContext(ctx, in0)
+			}
+		},
+	)
+
 	sqlfuncregistry.QueryRow[func(context.Context) (int64, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context) (int64, error))) = func(ctx context.Context) (out0 int64, err error) {
