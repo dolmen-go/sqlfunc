@@ -35,6 +35,14 @@ func init() {
 		},
 	)
 
+	sqlfuncregistry.Exec[func(context.Context, int, int, int) (sql.Result, error)](
+		func(stmt *sql.Stmt, fnPtr any) {
+			*(fnPtr.(*func(context.Context, int, int, int) (sql.Result, error))) = func(ctx context.Context, in0 int, in1 int, in2 int) (sql.Result, error) {
+				return stmt.ExecContext(ctx, in0, in1, in2)
+			}
+		},
+	)
+
 	sqlfuncregistry.Exec[func(context.Context, string) (sql.Result, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (sql.Result, error))) = func(ctx context.Context, in0 string) (sql.Result, error) {
@@ -51,6 +59,18 @@ func init() {
 			return err
 		}
 		return cb(v0)
+	})
+
+	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(bool, string)) error {
+		var (
+			v0 bool
+			v1 string
+		)
+		if err := rows.Scan(&v0, &v1); err != nil {
+			return err
+		}
+		cb(v0, v1)
+		return nil
 	})
 
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(sql.Null[int64]) error) error {
@@ -141,6 +161,14 @@ func init() {
 		},
 	)
 
+	sqlfuncregistry.Query[func(context.Context, float64) (*sql.Rows, error)](
+		func(stmt *sql.Stmt, fnPtr any) {
+			*(fnPtr.(*func(context.Context, float64) (*sql.Rows, error))) = func(ctx context.Context, in0 float64) (*sql.Rows, error) {
+				return stmt.QueryContext(ctx, in0)
+			}
+		},
+	)
+
 	sqlfuncregistry.Query[func(context.Context, string) (*sql.Rows, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (*sql.Rows, error))) = func(ctx context.Context, in0 string) (*sql.Rows, error) {
@@ -161,6 +189,15 @@ func init() {
 	sqlfuncregistry.QueryRow[func(context.Context, string) (float64, float64, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (float64, float64, error))) = func(ctx context.Context, in0 string) (out0 float64, out1 float64, err error) {
+				err = stmt.QueryRowContext(ctx, in0).Scan(&out0, &out1)
+				return
+			}
+		},
+	)
+
+	sqlfuncregistry.QueryRow[func(context.Context, string) (int, string, error)](
+		func(stmt *sql.Stmt, fnPtr any) {
+			*(fnPtr.(*func(context.Context, string) (int, string, error))) = func(ctx context.Context, in0 string) (out0 int, out1 string, err error) {
 				err = stmt.QueryRowContext(ctx, in0).Scan(&out0, &out1)
 				return
 			}
@@ -207,6 +244,12 @@ func init() {
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows, v0 *any) error {
 			return rows.Scan(v0)
+		},
+	)
+
+	sqlfuncregistry.Scan(
+		func(rows *sql.Rows, v0 *bool, v1 *string) error {
+			return rows.Scan(v0, v1)
 		},
 	)
 
