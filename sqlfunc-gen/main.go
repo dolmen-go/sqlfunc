@@ -18,6 +18,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -29,25 +31,33 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("sqlfunc-gen: ")
 
+	if err := mainErr(context.TODO()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func mainErr(ctx context.Context) error {
 	if len(os.Args) > 1 {
-		log.Fatal("no flags expected.")
+		return errors.New("no flags expected.")
 	}
 
-	fsys, err := sqlfuncgen.Generate(context.Background(), sqlfuncgen.NewLogger(log.Println, log.Printf), "pattern=.")
+	fsys, err := sqlfuncgen.Generate(ctx, sqlfuncgen.NewLogger(log.Println, log.Printf), "pattern=.")
 	if err != nil {
 		if err == context.Canceled {
-			return
+			return nil
 		}
-		log.Fatal("generate: ", err)
+		return fmt.Errorf("generate: %w", err)
 	}
 
 	root, err := os.OpenRoot(".")
 	if err != nil {
-		log.Fatal("open root: ", err)
+		return fmt.Errorf("open root: %w", err)
 	}
 
 	err = genutils.WriteFS(root, fsys)
 	if err != nil {
-		log.Fatal("write: ", err)
+		return fmt.Errorf("write: %w", err)
 	}
+
+	return nil
 }
