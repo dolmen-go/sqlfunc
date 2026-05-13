@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -59,13 +60,18 @@ func (l *logger) Printf(format string, args ...any) {
 	l.printf(format, args...)
 }
 
-func Generate(ctx context.Context, log Logger, patterns ...string) (fs.FS, error) {
-	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
+func Generate(ctx context.Context, log Logger, rootDir string, patterns ...string) (fs.FS, error) {
+	rootDir, err := filepath.Abs(rootDir)
+	if err != nil {
+		return nil, err
+	}
 
+	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
 	cfg := &packages.Config{
 		Mode:    packages.NeedDeps | packages.NeedImports | packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Tests:   true,
 		Context: ctx,
+		Dir:     rootDir,
 	}
 
 	pkgs, err := packages.Load(cfg, patterns...)

@@ -41,7 +41,7 @@ func mainErr(ctx context.Context) error {
 		return errors.New("no flags expected.")
 	}
 
-	fsys, err := sqlfuncgen.Generate(ctx, sqlfuncgen.NewLogger(log.Println, log.Printf), "pattern=.")
+	fsys, err := sqlfuncgen.Generate(ctx, sqlfuncgen.NewLogger(log.Println, log.Printf), ".", "pattern=.")
 	if err != nil {
 		if err == context.Canceled {
 			return nil
