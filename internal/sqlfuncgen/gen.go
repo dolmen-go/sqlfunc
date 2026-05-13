@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"io"
@@ -72,6 +73,15 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 		Tests:   true,
 		Context: ctx,
 		Dir:     rootDir,
+		// Logf:    log.Printf, // Verbose mode, only for Load debugging
+
+		// Contrary to the default ParseFile in golang.org/x/go/packages:
+		// - we disable Object resolution because we don't use it in this modern parser
+		// - we disable Comments (parser.ParseComments)
+		ParseFile: func(fset *token.FileSet, filename string, src []byte) (f *ast.File, err error) {
+			const mode = parser.AllErrors | parser.SkipObjectResolution
+			return parser.ParseFile(fset, filename, src, mode)
+		},
 	}
 
 	pkgs, err := packages.Load(cfg, patterns...)
@@ -199,7 +209,8 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 						return
 					}
 					ident := fnPtrArg.X.(*ast.Ident)
-					if ident.Obj.Kind != ast.Var {
+					obj := ti.ObjectOf(ident)
+					if _, isVar := obj.(*types.Var); !isVar {
 						log.Printf("%s %s SKIP (arg %d is not the address (&) of a variable)",
 							pkg.Fset.Position(c.Pos()),
 							sTxt,
@@ -207,7 +218,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 						)
 						return
 					}
-					typ := ti.ObjectOf(ident).Type()
+					typ := obj.Type()
 					var sig *types.Signature
 				resolveNames:
 					for {
