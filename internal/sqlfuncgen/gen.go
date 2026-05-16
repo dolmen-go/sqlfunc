@@ -61,6 +61,27 @@ func (l *logger) Printf(format string, args ...any) {
 	l.printf(format, args...)
 }
 
+func printErrors(println func(...any), pkgs []*packages.Package) int {
+	// Adapted from golang.org/x/tools/go/packages.PrintErrors
+	var n int
+	errModules := make(map[*packages.Module]bool)
+	for pkg := range packages.Postorder(pkgs) {
+		for _, err := range pkg.Errors {
+			println(err)
+			n++
+		}
+
+		// Print pkg.Module.Error once if present.
+		mod := pkg.Module
+		if mod != nil && mod.Error != nil && !errModules[mod] {
+			errModules[mod] = true
+			println(mod.Error.Err)
+			n++
+		}
+	}
+	return n
+}
+
 func Generate(ctx context.Context, log Logger, rootDir string, patterns ...string) (fs.FS, error) {
 	rootDir, err := filepath.Abs(rootDir)
 	if err != nil {
@@ -89,8 +110,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 		return nil, fmt.Errorf("load: %w", err)
 	}
 
-	// TODO(dolmen) Don't print directly on os.Stderr.
-	if n := packages.PrintErrors(pkgs); n > 0 {
+	if n := printErrors(log.Println, pkgs); n > 0 {
 		return nil, fmt.Errorf("%d errors.", n)
 	}
 
