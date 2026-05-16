@@ -24,7 +24,16 @@ func _(ctx context.Context, db *sql.DB) {
 	// Unique signature for ForEach via Any
 	_ = sqlfunc.Any.ForEach(nil, func(a bool, b string) {})
 
+	// Unique signature for ForEach via Any, with indirection
+	var f4 func(a bool, b string, c float64)
+	_ = sqlfunc.Any.ForEach(nil, f4)
+
 	// Unique signature for Scan via Any
-	var f4 func(*sql.Rows, *bool, *string) error
-	sqlfunc.Any.Scan(&f4)
+	var f5 func(*sql.Rows, *bool, *string) error
+	sqlfunc.Any.Scan(&f5)
+
+	// Unique signature for Scan via Any
+	var f6 func(*sql.Rows, *bool, *string, *float64) error
+	f6indirect := &f6
+	sqlfunc.Any.Scan(f6indirect)
 }

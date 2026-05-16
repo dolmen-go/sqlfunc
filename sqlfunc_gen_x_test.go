@@ -73,6 +73,19 @@ func init() {
 		return nil
 	})
 
+	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(bool, string, float64)) error {
+		var (
+			v0 bool
+			v1 string
+			v2 float64
+		)
+		if err := rows.Scan(&v0, &v1, &v2); err != nil {
+			return err
+		}
+		cb(v0, v1, v2)
+		return nil
+	})
+
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(sql.Null[int64]) error) error {
 		var (
 			v0 sql.Null[int64]
