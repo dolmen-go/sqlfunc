@@ -101,10 +101,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 		// log.Println("PackageName:", pkg.Name, "ID:", pkg.ID)
 		ti := pkg.TypesInfo
 
-		gen := &Generator{
-			Pkg:     pkg,
-			Imports: make(map[string]*types.Package),
-		}
+		var gen *Generator
 
 		// Each of these is a parsed file.
 		for _, f := range pkg.Syntax {
@@ -191,7 +188,13 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 				log.Printf("%s %s",
 					filePos(c.Pos()),
 					sTxt)
-				// t.Printf("%+v", c)
+
+				if gen == nil {
+					gen = &Generator{
+						Pkg:     pkg,
+						Imports: make(map[string]*types.Package),
+					}
+				}
 
 				// Look at the last parameter
 				arg := c.Args[len(c.Args)-1]
@@ -277,7 +280,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 			}, nil)
 		}
 
-		if len(gen.Funcs) > 0 {
+		if gen != nil && len(gen.Funcs) > 0 {
 			// sqlfunc_gen.go
 			// sqlfunc_gen_test.go
 			// sqlfunc_gen_t_test.go
