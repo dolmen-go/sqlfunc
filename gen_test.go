@@ -1,9 +1,11 @@
 package sqlfunc_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	iofs "io/fs"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,8 +39,32 @@ func dumpDir(fs iofs.FS, path string) (string, error) {
 	return buf.String(), nil
 }
 
+type testingLogWriter func(...any)
+
+func (w testingLogWriter) Write(b []byte) (int, error) {
+	b = bytes.TrimRight(b, "\n")
+	w(string(b))
+	return len(b), nil
+}
+
 func TestGenerate(t *testing.T) {
-	fs, err := sqlfuncgen.Generate(t.Context(), sqlfuncgen.NewLogger(t.Log, t.Logf), ".", "pattern=.")
+	fs, err := sqlfuncgen.Generate(
+		t.Context(),
+		slog.New(
+			slog.NewTextHandler(testingLogWriter(t.Log), &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+				ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+					// drop time
+					if a.Key == slog.TimeKey && len(groups) == 0 {
+						return slog.Attr{}
+					}
+					return a
+				},
+			}),
+		),
+		".",
+		"pattern=.",
+	)
 	if err != nil {
 		t.Fatal("Generate:", err)
 	}
