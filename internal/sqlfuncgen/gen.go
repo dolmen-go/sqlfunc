@@ -209,6 +209,10 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 					}
 				}
 
+				skipf := func(format string, args ...any) {
+					log.Printf("%s %s SKIP ("+format+")", append([]any{filePos(c.Pos()), sTxt}, args...)...)
+				}
+
 				// Look at the last parameter
 				arg := c.Args[len(c.Args)-1]
 
@@ -220,15 +224,11 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 					// - identifier pointing to an interface{} variable, if calling sqlfunc.Any.ForEach
 					sig, isSig := ti.TypeOf(arg).(*types.Signature)
 					if !isSig {
-						log.Printf("%s %s SKIP (arg 1 is not a func but %s)",
-							filePos(c.Pos()),
-							sTxt,
-							ti.TypeOf(arg).String(),
-						)
+						skipf("arg 1 is not a func but %s", ti.TypeOf(arg).String())
 						return
 					}
 					if err := gen.add("ForEach", sig, (*Generator).genForEach); err != nil {
-						log.Printf("%s %s SKIP (%v)", filePos(c.Pos()), sTxt, err)
+						skipf("%v", err)
 					}
 
 					// As the argument might be a func literal, we want to go deeper in the AST
@@ -238,9 +238,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 					//
 					fnPtrArg, ok := arg.(*ast.UnaryExpr)
 					if !ok || fnPtrArg.Op != token.AND {
-						log.Printf("%s %s SKIP (arg %d is not a pointer but %s)",
-							filePos(c.Pos()),
-							sTxt,
+						skipf("arg %d is not a pointer but %s",
 							len(c.Args)-1,
 							reflect.TypeOf(arg),
 						)
@@ -249,11 +247,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 					ident := fnPtrArg.X.(*ast.Ident)
 					obj := ti.ObjectOf(ident)
 					if _, isVar := obj.(*types.Var); !isVar {
-						log.Printf("%s %s SKIP (arg %d is not the address (&) of a variable)",
-							filePos(c.Pos()),
-							sTxt,
-							len(c.Args)-1,
-						)
+						skipf("arg %d is not the address (&) of a variable", len(c.Args)-1)
 						return
 					}
 					typ := obj.Type()
@@ -269,12 +263,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 						case *types.Alias:
 							typ = typX.Underlying()
 						default:
-							log.Printf("%s %s SKIP (%s is not function variable but %s)",
-								filePos(c.Pos()),
-								sTxt,
-								ident.Name,
-								typ,
-							)
+							skipf("%s is not function variable but %s", ident.Name, typ)
 							return
 						}
 					}
@@ -286,7 +275,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 						build = (*Generator).genStmt
 					}
 					if err = gen.add(s.Sel.Name, sig, build); err != nil {
-						log.Printf("%s %s SKIP (%v)", filePos(c.Pos()), sTxt, err)
+						skipf("%v", err)
 					}
 				}
 				return
