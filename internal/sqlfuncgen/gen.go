@@ -212,22 +212,55 @@ func Generate(ctx context.Context, logf func(string, ...any), rootDir string, pa
 					return true
 				default:
 					deeper = false // Skip processing the arguments (just for speed)
-					//
-					fnPtrArg, ok := arg.(*ast.UnaryExpr)
-					if !ok || fnPtrArg.Op != token.AND {
+					var typ types.Type
+					var ident *ast.Ident
+					switch arg := arg.(type) {
+					// var x func(...)
+					// sqlfunc.X(..., &x)
+					case *ast.UnaryExpr: // Maybe a pointer? To a variable?
+						if arg.Op != token.AND {
+							skipf("arg %d is not a pointer but %s",
+								len(c.Args)-1,
+								reflect.TypeOf(arg),
+							)
+							return
+						}
+						ident, ok = arg.X.(*ast.Ident)
+						if !ok {
+							skipf("arg %d is not a pointer to a variable but to %s",
+								len(c.Args)-1,
+								reflect.TypeOf(arg.X),
+							)
+							return
+						}
+						objVar, isVar := ti.ObjectOf(ident).(*types.Var)
+						if !isVar {
+							skipf("arg %d is not the address (&) of a variable", len(c.Args)-1)
+							return
+						}
+						typ = objVar.Type()
+					// var y *func(...)
+					// sqlfunc.X(..., y)
+					case *ast.Ident: // An identifier? A variable? Let's look at its type if it is a pointer to a func
+						objVar, isVar := ti.ObjectOf(arg).(*types.Var)
+						if !isVar {
+							skipf("arg %d is not a variable or a pointer to a variable but %s", len(c.Args)-1, reflect.TypeOf(obj))
+							return
+						}
+						if ptr, isPtr := objVar.Type().(*types.Pointer); isPtr {
+							typ = ptr.Elem()
+						} else {
+							// OK if sqlfunc.Any
+							skipf("arg %d: type of variable %s is not a pointer to a function but %s", len(c.Args)-1, arg.Name, objVar.Type())
+							return
+						}
+					default:
 						skipf("arg %d is not a pointer but %s",
 							len(c.Args)-1,
 							reflect.TypeOf(arg),
 						)
 						return
 					}
-					ident := fnPtrArg.X.(*ast.Ident)
-					obj := ti.ObjectOf(ident)
-					if _, isVar := obj.(*types.Var); !isVar {
-						skipf("arg %d is not the address (&) of a variable", len(c.Args)-1)
-						return
-					}
-					typ := obj.Type()
 					var sig *types.Signature
 				resolveNames:
 					for {
@@ -240,7 +273,12 @@ func Generate(ctx context.Context, logf func(string, ...any), rootDir string, pa
 						case *types.Alias:
 							typ = typX.Underlying()
 						default:
-							skipf("%s is not function variable but %s", ident.Name, typ)
+							// should be an error unless sqlfunc.Any
+							if ident != nil {
+								skipf("%s is not function variable but %s", ident.Name, typ)
+							} else {
+								skipf("arg %d is not a pointer function variable but %s", len(c.Args)-1, typ)
+							}
 							return
 						}
 					}

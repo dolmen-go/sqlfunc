@@ -267,6 +267,12 @@ func init() {
 	)
 
 	sqlfuncregistry.Scan(
+		func(rows *sql.Rows, v0 *bool, v1 *string, v2 *float64) error {
+			return rows.Scan(v0, v1, v2)
+		},
+	)
+
+	sqlfuncregistry.Scan(
 		func(rows *sql.Rows, v0 *int) error {
 			return rows.Scan(v0)
 		},
