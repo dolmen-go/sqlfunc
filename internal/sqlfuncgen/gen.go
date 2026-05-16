@@ -106,23 +106,16 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 		// Each of these is a parsed file.
 		for _, f := range pkg.Syntax {
 
-			var relFiles map[string]string
+			var relFile string
 			filePos := func(pos token.Pos) string {
 				position := pkg.Fset.Position(pos)
-				if relName, ok := relFiles[position.Filename]; ok {
-					position.Filename = relName
-				} else {
-					relName, err = filepath.Rel(rootDir, position.Filename)
+				if relFile == "" {
+					relFile, err = filepath.Rel(rootDir, position.Filename)
 					if err != nil {
 						panic(err) // unexpected
 					}
-					if relFiles == nil {
-						relFiles = make(map[string]string)
-					}
-					relFiles[position.Filename] = relName
-					position.Filename = relName
 				}
-				b := append([]byte(nil), position.Filename...)
+				b := append([]byte(nil), relFile...)
 				b = append(b, ':')
 				b = strconv.AppendInt(b, int64(position.Line), 10)
 				return string(b)
