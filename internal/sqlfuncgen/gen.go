@@ -61,25 +61,24 @@ func (l *logger) Printf(format string, args ...any) {
 	l.printf(format, args...)
 }
 
-func printErrors(printErr func(err error), pkgs []*packages.Package) int {
+func collectErrors(pkgs []*packages.Package) error {
 	// Adapted from golang.org/x/tools/go/packages.PrintErrors
-	var n int
+	var errs []error
 	errModules := make(map[*packages.Module]bool)
 	for pkg := range packages.Postorder(pkgs) {
+		errs = slices.Grow(errs, len(pkg.Errors))
 		for _, err := range pkg.Errors {
-			printErr(err)
-			n++
+			errs = append(errs, err)
 		}
 
 		// Print pkg.Module.Error once if present.
 		mod := pkg.Module
 		if mod != nil && mod.Error != nil && !errModules[mod] {
 			errModules[mod] = true
-			printErr(errors.New(mod.Error.Err))
-			n++
+			errs = append(errs, errors.New(mod.Error.Err))
 		}
 	}
-	return n
+	return errors.Join(errs...)
 }
 
 func Generate(ctx context.Context, log Logger, rootDir string, patterns ...string) (fs.FS, error) {
@@ -110,8 +109,8 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 		return nil, fmt.Errorf("load: %w", err)
 	}
 
-	if n := printErrors(func(err error) { log.Println(err) }, pkgs); n > 0 {
-		return nil, fmt.Errorf("%d errors.", n)
+	if errs := collectErrors(pkgs); errs != nil {
+		return nil, errs
 	}
 
 	var genfs genFS
