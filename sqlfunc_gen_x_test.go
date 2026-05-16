@@ -13,6 +13,7 @@ import (
 )
 
 func init() {
+	// stmt_test.go:234
 	sqlfuncregistry.Exec[func(context.Context, *sql.Tx, float64, float64, string) (sql.Result, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, *sql.Tx, float64, float64, string) (sql.Result, error))) = func(ctx context.Context, tx *sql.Tx, in0 float64, in1 float64, in2 string) (sql.Result, error) {
@@ -26,6 +27,8 @@ func init() {
 		},
 	)
 
+	// stmt_test.go:58
+	// stmt_test.go:135
 	sqlfuncregistry.Exec[func(context.Context, float32, float32, string) error](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, float32, float32, string) error)) = func(ctx context.Context, in0 float32, in1 float32, in2 string) (err error) {
@@ -35,6 +38,7 @@ func init() {
 		},
 	)
 
+	// any_test.go:14
 	sqlfuncregistry.Exec[func(context.Context, int, int, int) (sql.Result, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, int, int, int) (sql.Result, error))) = func(ctx context.Context, in0 int, in1 int, in2 int) (sql.Result, error) {
@@ -43,6 +47,7 @@ func init() {
 		},
 	)
 
+	// stmt_test.go:808
 	sqlfuncregistry.Exec[func(context.Context, string) (sql.Result, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (sql.Result, error))) = func(ctx context.Context, in0 string) (sql.Result, error) {
@@ -51,6 +56,7 @@ func init() {
 		},
 	)
 
+	// scan_test.go:521
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(*int64) error) error {
 		var (
 			v0 *int64
@@ -61,6 +67,7 @@ func init() {
 		return cb(v0)
 	})
 
+	// any_test.go:25
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(bool, string)) error {
 		var (
 			v0 bool
@@ -73,6 +80,7 @@ func init() {
 		return nil
 	})
 
+	// any_test.go:29
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(bool, string, float64)) error {
 		var (
 			v0 bool
@@ -86,6 +94,7 @@ func init() {
 		return nil
 	})
 
+	// scan_test.go:155
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(sql.Null[int64]) error) error {
 		var (
 			v0 sql.Null[int64]
@@ -96,6 +105,9 @@ func init() {
 		return cb(v0)
 	})
 
+	// stmt_test.go:360
+	// stmt_test.go:395
+	// stmt_test.go:434
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(float64, float64)) error {
 		var (
 			v0 float64
@@ -108,6 +120,8 @@ func init() {
 		return nil
 	})
 
+	// scan_test.go:51
+	// scan_test.go:84
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(int)) error {
 		var (
 			v0 int
@@ -119,6 +133,7 @@ func init() {
 		return nil
 	})
 
+	// scan_test.go:119
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(int) bool) error {
 		var (
 			v0 int
@@ -132,6 +147,7 @@ func init() {
 		return nil
 	})
 
+	// scan_test.go:196
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(int) error) error {
 		var (
 			v0 int
@@ -142,6 +158,8 @@ func init() {
 		return cb(v0)
 	})
 
+	// stmt_test.go:271
+	// stmt_test.go:320
 	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb func(string)) error {
 		var (
 			v0 string
@@ -153,6 +171,9 @@ func init() {
 		return nil
 	})
 
+	// stmt_test.go:220
+	// stmt_test.go:310
+	// stmt_test.go:706
 	sqlfuncregistry.Query[func(context.Context) (*sql.Rows, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context) (*sql.Rows, error))) = func(ctx context.Context) (*sql.Rows, error) {
@@ -161,6 +182,8 @@ func init() {
 		},
 	)
 
+	// stmt_test.go:346
+	// stmt_test.go:420
 	sqlfuncregistry.Query[func(context.Context, *sql.Tx, string) (*sql.Rows, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, *sql.Tx, string) (*sql.Rows, error))) = func(ctx context.Context, tx *sql.Tx, in0 string) (*sql.Rows, error) {
@@ -174,6 +197,7 @@ func init() {
 		},
 	)
 
+	// any_test.go:22
 	sqlfuncregistry.Query[func(context.Context, float64) (*sql.Rows, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, float64) (*sql.Rows, error))) = func(ctx context.Context, in0 float64) (*sql.Rows, error) {
@@ -182,6 +206,7 @@ func init() {
 		},
 	)
 
+	// stmt_test.go:385
 	sqlfuncregistry.Query[func(context.Context, string) (*sql.Rows, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (*sql.Rows, error))) = func(ctx context.Context, in0 string) (*sql.Rows, error) {
@@ -190,6 +215,7 @@ func init() {
 		},
 	)
 
+	// stmt_test.go:211
 	sqlfuncregistry.QueryRow[func(context.Context) (int64, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context) (int64, error))) = func(ctx context.Context) (out0 int64, err error) {
@@ -199,6 +225,9 @@ func init() {
 		},
 	)
 
+	// stmt_test.go:82
+	// stmt_test.go:159
+	// stmt_test.go:459
 	sqlfuncregistry.QueryRow[func(context.Context, string) (float64, float64, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (float64, float64, error))) = func(ctx context.Context, in0 string) (out0 float64, out1 float64, err error) {
@@ -208,6 +237,7 @@ func init() {
 		},
 	)
 
+	// any_test.go:18
 	sqlfuncregistry.QueryRow[func(context.Context, string) (int, string, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (int, string, error))) = func(ctx context.Context, in0 string) (out0 int, out1 string, err error) {
@@ -217,6 +247,7 @@ func init() {
 		},
 	)
 
+	// stmt_test.go:762
 	sqlfuncregistry.QueryRow[func(context.Context, string) (string, error)](
 		func(stmt *sql.Stmt, fnPtr any) {
 			*(fnPtr.(*func(context.Context, string) (string, error))) = func(ctx context.Context, in0 string) (out0 string, err error) {
@@ -226,6 +257,7 @@ func init() {
 		},
 	)
 
+	// scan_test.go:426
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows) (v0 sql.Scanner, err error) {
 			err = rows.Scan(&v0)
@@ -233,6 +265,7 @@ func init() {
 		},
 	)
 
+	// scan_test.go:1048
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows) (v0 int, err error) {
 			err = rows.Scan(&v0)
@@ -240,6 +273,7 @@ func init() {
 		},
 	)
 
+	// scan_test.go:437
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows) (v0 interface{Scan(any) error}, err error) {
 			err = rows.Scan(&v0)
@@ -247,6 +281,8 @@ func init() {
 		},
 	)
 
+	// scan_test.go:255
+	// scan_test.go:320
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows) (v0 string, err error) {
 			err = rows.Scan(&v0)
@@ -254,24 +290,30 @@ func init() {
 		},
 	)
 
+	// scan_test.go:362
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows, v0 *any) error {
 			return rows.Scan(v0)
 		},
 	)
 
+	// any_test.go:33
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows, v0 *bool, v1 *string) error {
 			return rows.Scan(v0, v1)
 		},
 	)
 
+	// any_test.go:38
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows, v0 *bool, v1 *string, v2 *float64) error {
 			return rows.Scan(v0, v1, v2)
 		},
 	)
 
+	// scan_test.go:230
+	// scan_test.go:295
+	// scan_test.go:1027
 	sqlfuncregistry.Scan(
 		func(rows *sql.Rows, v0 *int) error {
 			return rows.Scan(v0)

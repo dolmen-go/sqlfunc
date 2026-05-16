@@ -18,6 +18,7 @@ package sqlfuncgen
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -204,7 +205,7 @@ func Generate(ctx context.Context, logf func(string, ...any), rootDir string, pa
 						skipf("arg 1 is not a func but %s", ti.TypeOf(arg).String())
 						return
 					}
-					if err := gen.add("ForEach", sig, (*Generator).genForEach); err != nil {
+					if err := gen.add("ForEach", filePos(c.Pos()), sig, (*Generator).genForEach); err != nil {
 						skipf("%v", err)
 					}
 
@@ -289,7 +290,7 @@ func Generate(ctx context.Context, logf func(string, ...any), rootDir string, pa
 					} else { // Exec, QueryRow, Query
 						build = (*Generator).genStmt
 					}
-					if err = gen.add(s.Sel.Name, sig, build); err != nil {
+					if err = gen.add(s.Sel.Name, filePos(c.Pos()), sig, build); err != nil {
 						skipf("%v", err)
 					}
 				}
@@ -313,14 +314,33 @@ type funcCode interface {
 	Template() string
 }
 
-func printFuncCode(w io.Writer, f interface{ Template() string }) error {
-	tmpl := template.New(reflect.TypeOf(f).Elem().Name())
-	tmpl, err := tmpl.Parse(f.Template())
+type funcDef struct {
+	refs []string
+	code funcCode
+}
+
+func printFuncDef(w io.Writer, f *funcDef) error {
+	// Print references to source, sorted by file, then line number
+	slices.SortFunc(f.refs, func(a, b string) int {
+		p := strings.IndexByte(a, ':')
+		// filename
+		if !strings.HasPrefix(b, a[:p+1]) {
+			return cmp.Compare(a, b)
+		}
+		// line number
+		return cmp.Or(cmp.Compare(len(a), len(b)), cmp.Compare(a, b))
+	})
+	for _, r := range f.refs {
+		fmt.Fprintf(w, "\n\t// %s", r)
+	}
+
+	tmpl := template.New(reflect.TypeOf(f.code).Elem().Name())
+	tmpl, err := tmpl.Parse(f.code.Template())
 	if err != nil {
 		return fmt.Errorf("Parse template: %w", err)
 	}
 
-	if err = tmpl.Execute(w, f); err != nil {
+	if err = tmpl.Execute(w, f.code); err != nil {
 		return fmt.Errorf("Execute template: %w", err)
 	}
 
@@ -331,7 +351,7 @@ type Generator struct {
 	Pkg     *packages.Package
 	Imports map[string]*types.Package
 
-	Funcs map[string]funcCode
+	Funcs map[string]*funcDef
 }
 
 func (gen *Generator) generateCode() (string, error) {
@@ -367,7 +387,7 @@ func (gen *Generator) generateCode() (string, error) {
 	keys := slices.Collect(maps.Keys(gen.Funcs))
 	slices.Sort(keys)
 	for _, k := range keys {
-		if err := printFuncCode(&buf, gen.Funcs[k]); err != nil {
+		if err := printFuncDef(&buf, gen.Funcs[k]); err != nil {
 			return "", fmt.Errorf("%s: %w", k, err)
 		}
 	}
@@ -432,7 +452,7 @@ func (g *Generator) checkTypeScope(typ types.Type) error {
 	return nil
 }
 
-func (g *Generator) add(registry string, sig *types.Signature, build func(g *Generator, registry string, sig *types.Signature) (funcCode, error)) error {
+func (g *Generator) add(registry string, ref string, sig *types.Signature, build func(g *Generator, registry string, sig *types.Signature) (funcCode, error)) error {
 	// Strip parameter names to maximize reuse of generated code
 	sig = stripNames(sig).(*types.Signature)
 
@@ -440,7 +460,8 @@ func (g *Generator) add(registry string, sig *types.Signature, build func(g *Gen
 	key := registry + " " + types.TypeString(sig, nil)
 
 	// Skip if we already have a function for this signature
-	if _, exists := g.Funcs[key]; exists {
+	if f, exists := g.Funcs[key]; exists {
+		f.refs = append(f.refs, ref)
 		return nil
 	}
 	f, err := build(g, registry, sig)
@@ -451,9 +472,12 @@ func (g *Generator) add(registry string, sig *types.Signature, build func(g *Gen
 		return nil
 	}
 	if g.Funcs == nil {
-		g.Funcs = make(map[string]funcCode)
+		g.Funcs = make(map[string]*funcDef)
 	}
-	g.Funcs[key] = f
+	g.Funcs[key] = &funcDef{
+		refs: []string{ref},
+		code: f,
+	}
 	return nil
 }
 
