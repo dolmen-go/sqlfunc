@@ -109,6 +109,28 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 		// Each of these is a parsed file.
 		for _, f := range pkg.Syntax {
 
+			var relFiles map[string]string
+			filePos := func(pos token.Pos) string {
+				position := pkg.Fset.Position(pos)
+				if relName, ok := relFiles[position.Filename]; ok {
+					position.Filename = relName
+				} else {
+					relName, err = filepath.Rel(rootDir, position.Filename)
+					if err != nil {
+						panic(err) // unexpected
+					}
+					if relFiles == nil {
+						relFiles = make(map[string]string)
+					}
+					relFiles[position.Filename] = relName
+					position.Filename = relName
+				}
+				b := append([]byte(nil), position.Filename...)
+				b = append(b, ':')
+				b = strconv.AppendInt(b, int64(position.Line), 10)
+				return string(b)
+			}
+
 			// Here's where we walk over the syntax tree.  We can
 			// return false to stop walking early.  The code could
 			// probably be faster by carefully stopping the walk
@@ -167,7 +189,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 				sTxt := fmtSel(s)
 
 				log.Printf("%s %s",
-					pkg.Fset.Position(c.Pos()),
+					filePos(c.Pos()),
 					sTxt)
 				// t.Printf("%+v", c)
 
@@ -183,14 +205,14 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 					sig, isSig := ti.TypeOf(arg).(*types.Signature)
 					if !isSig {
 						log.Printf("%s %s SKIP (arg 1 is not a func but %s)",
-							pkg.Fset.Position(c.Pos()),
+							filePos(c.Pos()),
 							sTxt,
 							ti.TypeOf(arg).String(),
 						)
 						return
 					}
 					if err := gen.add("ForEach", sig, (*Generator).genForEach); err != nil {
-						log.Printf("%s %s SKIP (%v)", pkg.Fset.Position(c.Pos()), sTxt, err)
+						log.Printf("%s %s SKIP (%v)", filePos(c.Pos()), sTxt, err)
 					}
 
 					// As the argument might be a func literal, we want to go deeper in the AST
@@ -201,7 +223,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 					fnPtrArg, ok := arg.(*ast.UnaryExpr)
 					if !ok || fnPtrArg.Op != token.AND {
 						log.Printf("%s %s SKIP (arg %d is not a pointer but %s)",
-							pkg.Fset.Position(c.Pos()),
+							filePos(c.Pos()),
 							sTxt,
 							len(c.Args)-1,
 							reflect.TypeOf(arg),
@@ -212,7 +234,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 					obj := ti.ObjectOf(ident)
 					if _, isVar := obj.(*types.Var); !isVar {
 						log.Printf("%s %s SKIP (arg %d is not the address (&) of a variable)",
-							pkg.Fset.Position(c.Pos()),
+							filePos(c.Pos()),
 							sTxt,
 							len(c.Args)-1,
 						)
@@ -232,7 +254,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 							typ = typX.Underlying()
 						default:
 							log.Printf("%s %s SKIP (%s is not function variable but %s)",
-								pkg.Fset.Position(c.Pos()),
+								filePos(c.Pos()),
 								sTxt,
 								ident.Name,
 								typ,
@@ -248,7 +270,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 						build = (*Generator).genStmt
 					}
 					if err = gen.add(s.Sel.Name, sig, build); err != nil {
-						log.Printf("%s %s SKIP (%v)", pkg.Fset.Position(c.Pos()), sTxt, err)
+						log.Printf("%s %s SKIP (%v)", filePos(c.Pos()), sTxt, err)
 					}
 				}
 				return
