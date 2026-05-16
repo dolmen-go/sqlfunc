@@ -38,7 +38,7 @@ func dumpDir(fs iofs.FS, path string) (string, error) {
 }
 
 func TestGenerate(t *testing.T) {
-	fs, err := sqlfuncgen.Generate(t.Context(), sqlfuncgen.NewLogger(t.Log, t.Logf), ".", "pattern=.")
+	fs, err := sqlfuncgen.Generate(t.Context(), t.Logf, ".", "pattern=.")
 	if err != nil {
 		t.Fatal("Generate:", err)
 	}

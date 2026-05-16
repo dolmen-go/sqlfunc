@@ -39,28 +39,6 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-type Logger = interface {
-	Println(args ...any)
-	Printf(format string, args ...any)
-}
-
-func NewLogger(println func(...any), printf func(format string, args ...any)) Logger {
-	return &logger{println, printf}
-}
-
-type logger struct {
-	println func(...any)
-	printf  func(format string, args ...any)
-}
-
-func (l *logger) Println(args ...any) {
-	l.println(args...)
-}
-
-func (l *logger) Printf(format string, args ...any) {
-	l.printf(format, args...)
-}
-
 func collectErrors(pkgs []*packages.Package) error {
 	// Adapted from golang.org/x/tools/go/packages.PrintErrors
 	var errs []error
@@ -81,7 +59,7 @@ func collectErrors(pkgs []*packages.Package) error {
 	return errors.Join(errs...)
 }
 
-func Generate(ctx context.Context, log Logger, rootDir string, patterns ...string) (fs.FS, error) {
+func Generate(ctx context.Context, logf func(string, ...any), rootDir string, patterns ...string) (fs.FS, error) {
 	rootDir, err := filepath.Abs(rootDir)
 	if err != nil {
 		return nil, err
@@ -197,7 +175,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 				}
 				sTxt := fmtSel(s)
 
-				log.Printf("%s %s",
+				logf("%s %s",
 					filePos(c.Pos()),
 					sTxt)
 
@@ -209,7 +187,7 @@ func Generate(ctx context.Context, log Logger, rootDir string, patterns ...strin
 				}
 
 				skipf := func(format string, args ...any) {
-					log.Printf("%s %s SKIP ("+format+")", append([]any{filePos(c.Pos()), sTxt}, args...)...)
+					logf("%s %s SKIP ("+format+")", append([]any{filePos(c.Pos()), sTxt}, args...)...)
 				}
 
 				// Look at the last parameter
