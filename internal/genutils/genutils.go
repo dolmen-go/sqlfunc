@@ -23,6 +23,7 @@ import (
 	iofs "io/fs"
 	"os"
 	"regexp"
+	"strings"
 )
 
 // Standard: https://go.dev/s/generatedcode
@@ -53,13 +54,17 @@ func WriteFS(root interface {
 		}
 
 		path := f.Name()
-		isGenerated, err := IsFileGenerated(rootFS, path)
-		if err == nil {
-			if !isGenerated {
-				return fmt.Errorf("%s: not a generated file (safety belt)", path)
+		if strings.HasSuffix(path, ".go") {
+			isGenerated, err := IsFileGenerated(rootFS, path)
+			if err == nil {
+				if !isGenerated {
+					return fmt.Errorf("%s: not a generated file (safety belt)", path)
+				}
+			} else if !os.IsNotExist(err) {
+				return fmt.Errorf("%s: %w", path, err)
 			}
-		} else if !os.IsNotExist(err) {
-			return fmt.Errorf("%s: %w", path, err)
+		} else {
+			return fmt.Errorf("%s: not a .go file (safety belt)", path)
 		}
 
 		fi, err := fs.Open(f.Name())
