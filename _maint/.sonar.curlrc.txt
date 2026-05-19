@@ -1,0 +1,12 @@
+# cURL configuration file to use to connect to SonarQube Cloud API
+#
+# Usage:   curl -K .sonar.curlrc.txt <url>
+# Example:
+#   export SONAR_TOKEN=...
+#   curl -K .sonar.curlrc.txt 'https://sonarcloud.io/api/users/current'
+#   curl -K .sonar.curlrc.txt 'https://sonarcloud.io/api/projects/search?organization=dolmen-go'
+
+variable = %SONAR_TOKEN
+expand-user = {{SONAR_TOKEN}}:
+silent
+fail-with-body
