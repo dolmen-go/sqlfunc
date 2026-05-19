@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-project_root="$(dirname "$0")/.."
+dir="$(dirname "$0")"
+project_root="$dir/.."
 project_key="$(sed -n -e 's/sonar.projectKey=//p' "${project_root}/sonar-project.properties")"
 git_branch="$(git symbolic-ref --short HEAD)"
 
-exec curl -K "$(dirname "$0")"/.sonar.curlrc.txt --url-query componentKeys="$project_key" --url-query branch="$git_branch" "$@" 'https://sonarcloud.io/api/issues/search?resolved=false' | jq -f sonar-issues.jq
+exec curl -K "$dir/.sonar.curlrc.txt" --url-query componentKeys="$project_key" --url-query branch="$git_branch" "$@" 'https://sonarcloud.io/api/issues/search?resolved=false' | jq -f "$dir/sonar-issues.jq"
