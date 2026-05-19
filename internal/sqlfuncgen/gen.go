@@ -1,0 +1,865 @@
+/*
+Copyright 2026 Olivier Mengué
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package sqlfuncgen
+
+import (
+	"bytes"
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"go/types"
+	"io"
+	"io/fs"
+	"maps"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strconv"
+	"strings"
+	"text/template"
+
+	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/packages"
+)
+
+func collectErrors(pkgs []*packages.Package) error {
+	// Adapted from golang.org/x/tools/go/packages.PrintErrors
+	var errs []error
+	errModules := make(map[*packages.Module]bool)
+	for pkg := range packages.Postorder(pkgs) {
+		errs = slices.Grow(errs, len(pkg.Errors))
+		for _, err := range pkg.Errors {
+			errs = append(errs, err)
+		}
+
+		// Print pkg.Module.Error once if present.
+		mod := pkg.Module
+		if mod != nil && mod.Error != nil && !errModules[mod] {
+			errModules[mod] = true
+			errs = append(errs, errors.New(mod.Error.Err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func Generate(ctx context.Context, logf func(string, ...any), rootDir string, patterns ...string) (fs.FS, error) {
+	rootDir, err := filepath.Abs(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Helpful article: https://blog.afoolishmanifesto.com/posts/writing-a-golang-linter/
+	cfg := &packages.Config{
+		Mode:    packages.NeedDeps | packages.NeedImports | packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Tests:   true,
+		Context: ctx,
+		Dir:     rootDir,
+		// Logf:    log.Printf, // Verbose mode, only for Load debugging
+
+		// Contrary to the default ParseFile in golang.org/x/go/packages:
+		// - we disable Object resolution because we don't use it in this modern parser
+		// - we disable Comments (parser.ParseComments)
+		ParseFile: func(fset *token.FileSet, filename string, src []byte) (f *ast.File, err error) {
+			const mode = parser.AllErrors | parser.SkipObjectResolution
+			return parser.ParseFile(fset, filename, src, mode)
+		},
+	}
+
+	pkgs, err := packages.Load(cfg, patterns...)
+	if err != nil {
+		return nil, fmt.Errorf("load: %w", err)
+	}
+
+	if errs := collectErrors(pkgs); errs != nil {
+		return nil, errs
+	}
+
+	var genfs genFS
+
+	// Lint each package we find.
+	for _, pkg := range pkgs {
+		// log.Println("PackageName:", pkg.Name, "ID:", pkg.ID)
+		ti := pkg.TypesInfo
+
+		var gen *Generator
+
+		// Each of these is a parsed file.
+		for _, f := range pkg.Syntax {
+
+			var relFile string
+			filePos := func(pos token.Pos) string {
+				position := pkg.Fset.Position(pos)
+				if relFile == "" {
+					relFile, err = filepath.Rel(rootDir, position.Filename)
+					if err != nil {
+						panic(err) // unexpected
+					}
+				}
+				b := append([]byte(nil), relFile...)
+				b = append(b, ':')
+				b = strconv.AppendInt(b, int64(position.Line), 10)
+				return string(b)
+			}
+
+			// Here's where we walk over the syntax tree.  We can
+			// return false to stop walking early.  The code could
+			// probably be faster by carefully stopping the walk
+			// early, but I decided that probably wasn't worth the
+			// effort.
+			astutil.Apply(f, func(cur *astutil.Cursor) (deeper bool) {
+				deeper = true
+
+				c, ok := cur.Node().(*ast.CallExpr)
+				// if it's not a call, bail out.
+				if !ok {
+					return
+				}
+				// verify that the function being called is a
+				// selector.  A selector in Go looks like
+				// `foo.bar`.  Read more here:
+				// https://golang.org/ref/spec#Selectors
+				s, ok := c.Fun.(*ast.SelectorExpr) // possibly method calls
+				if !ok {
+					return
+				}
+
+				obj := ti.ObjectOf(s.Sel)
+				if obj == nil {
+					return
+				}
+				pkgObj := obj.Pkg()
+				const pkgPath = "github.com/dolmen-go/sqlfunc"
+				if pkgObj == nil || pkgObj.Path() != pkgPath {
+					return
+				}
+
+				// If it's a method, verify it's attached to AnyAPI
+				if sig, ok := obj.Type().(*types.Signature); ok && sig.Recv() != nil {
+					recvType := sig.Recv().Type()
+					if ptr, ok := recvType.(*types.Pointer); ok {
+						recvType = ptr.Elem()
+					}
+					named, ok := recvType.(*types.Named)
+					if !ok || named.Obj().Name() != "AnyAPI" {
+						return
+					}
+				}
+
+				var fmtSel func(*ast.SelectorExpr) string
+				fmtSel = func(s *ast.SelectorExpr) string {
+					switch x := s.X.(type) {
+					case *ast.SelectorExpr:
+						return fmtSel(x) + "." + s.Sel.Name
+					case *ast.Ident:
+						return x.Name + "." + s.Sel.Name
+					default:
+						return "???." + s.Sel.Name
+					}
+				}
+				sTxt := fmtSel(s)
+
+				logf("%s %s",
+					filePos(c.Pos()),
+					sTxt)
+
+				if gen == nil {
+					gen = &Generator{
+						Pkg:     pkg,
+						Imports: make(map[string]*types.Package),
+					}
+				}
+
+				skipf := func(format string, args ...any) {
+					logf("%s %s SKIP ("+format+")", append([]any{filePos(c.Pos()), sTxt}, args...)...)
+				}
+
+				// Look at the last parameter
+				arg := c.Args[len(c.Args)-1]
+
+				switch s.Sel.Name {
+				case "ForEach":
+					// Function expected:
+					// - literal
+					// - identifier pointing to a func variable
+					// - identifier pointing to an interface{} variable, if calling sqlfunc.Any.ForEach
+					sig, isSig := ti.TypeOf(arg).(*types.Signature)
+					if !isSig {
+						skipf("arg 1 is not a func but %s", ti.TypeOf(arg).String())
+						return
+					}
+					if err := gen.add("ForEach", filePos(c.Pos()), sig, (*Generator).genForEach); err != nil {
+						skipf("%v", err)
+					}
+
+					// As the argument might be a func literal, we want to go deeper in the AST
+					return true
+				default:
+					deeper = false // Skip processing the arguments (just for speed)
+					var typ types.Type
+					var ident *ast.Ident
+					switch arg := arg.(type) {
+					// var x func(...)
+					// sqlfunc.X(..., &x)
+					case *ast.UnaryExpr: // Maybe a pointer? To a variable?
+						if arg.Op != token.AND {
+							skipf("arg %d is not a pointer but %s",
+								len(c.Args)-1,
+								reflect.TypeOf(arg),
+							)
+							return
+						}
+						ident, ok = arg.X.(*ast.Ident)
+						if !ok {
+							skipf("arg %d is not a pointer to a variable but to %s",
+								len(c.Args)-1,
+								reflect.TypeOf(arg.X),
+							)
+							return
+						}
+						objVar, isVar := ti.ObjectOf(ident).(*types.Var)
+						if !isVar {
+							skipf("arg %d is not the address (&) of a variable", len(c.Args)-1)
+							return
+						}
+						typ = objVar.Type()
+					// var y *func(...)
+					// sqlfunc.X(..., y)
+					case *ast.Ident: // An identifier? A variable? Let's look at its type if it is a pointer to a func
+						objVar, isVar := ti.ObjectOf(arg).(*types.Var)
+						if !isVar {
+							skipf("arg %d is not a variable or a pointer to a variable but %s", len(c.Args)-1, reflect.TypeOf(obj))
+							return
+						}
+						if ptr, isPtr := objVar.Type().(*types.Pointer); isPtr {
+							typ = ptr.Elem()
+						} else {
+							// OK if sqlfunc.Any
+							skipf("arg %d: type of variable %s is not a pointer to a function but %s", len(c.Args)-1, arg.Name, objVar.Type())
+							return
+						}
+					default:
+						skipf("arg %d is not a pointer but %s",
+							len(c.Args)-1,
+							reflect.TypeOf(arg),
+						)
+						return
+					}
+					var sig *types.Signature
+				resolveNames:
+					for {
+						switch typX := typ.(type) {
+						case *types.Signature:
+							sig = typX
+							break resolveNames
+						case *types.Named:
+							typ = typX.Underlying()
+						case *types.Alias:
+							typ = typX.Underlying()
+						default:
+							// should be an error unless sqlfunc.Any
+							if ident != nil {
+								skipf("%s is not function variable but %s", ident.Name, typ)
+							} else {
+								skipf("arg %d is not a pointer function variable but %s", len(c.Args)-1, typ)
+							}
+							return
+						}
+					}
+
+					var build func(*Generator, string, *types.Signature) (funcCode, error)
+					if s.Sel.Name == "Scan" {
+						build = (*Generator).genScan
+					} else { // Exec, QueryRow, Query
+						build = (*Generator).genStmt
+					}
+					if err = gen.add(s.Sel.Name, filePos(c.Pos()), sig, build); err != nil {
+						skipf("%v", err)
+					}
+				}
+				return
+			}, nil)
+		}
+
+		if gen != nil && len(gen.Funcs) > 0 {
+			// sqlfunc_gen.go
+			// sqlfunc_gen_test.go
+			// sqlfunc_gen_t_test.go
+			genfs.addFile("sqlfunc_gen"+suffixFromPkgID(pkg.ID), gen)
+		}
+	}
+	return genfs, nil
+}
+
+type funcCode interface {
+	Registry() string
+	// Template returns a text/template that will be executed to generate the code for this function.
+	Template() string
+}
+
+type funcDef struct {
+	refs []string
+	code funcCode
+}
+
+func printFuncDef(w io.Writer, f *funcDef) error {
+	// Print references to source, sorted by file, then line number
+	slices.SortFunc(f.refs, func(a, b string) int {
+		p := strings.IndexByte(a, ':')
+		// filename
+		if !strings.HasPrefix(b, a[:p+1]) {
+			return cmp.Compare(a, b)
+		}
+		// line number
+		return cmp.Or(cmp.Compare(len(a), len(b)), cmp.Compare(a, b))
+	})
+	for _, r := range f.refs {
+		fmt.Fprintf(w, "\n\t// %s", r)
+	}
+
+	tmpl := template.New(reflect.TypeOf(f.code).Elem().Name())
+	tmpl, err := tmpl.Parse(f.code.Template())
+	if err != nil {
+		return fmt.Errorf("Parse template: %w", err)
+	}
+
+	if err = tmpl.Execute(w, f.code); err != nil {
+		return fmt.Errorf("Execute template: %w", err)
+	}
+
+	return nil
+}
+
+type Generator struct {
+	Pkg     *packages.Package
+	Imports map[string]*types.Package
+
+	Funcs map[string]*funcDef
+}
+
+func (gen *Generator) generateCode() (string, error) {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, ``+
+		"//go:build sqlfunc_registry_on || !sqlfunc_registry_off\n"+
+		"\n"+
+		// Standard: https://go.dev/s/generatedcode
+		"// Code generated by sqlfunc-gen; DO NOT EDIT.\n"+
+		"\n"+
+		"package %s\n"+
+		"\n"+
+		`import "github.com/dolmen-go/sqlfunc/sqlfuncregistry"`+"\n"+
+		"\n",
+		gen.Pkg.Name)
+
+	if len(gen.Imports) > 0 {
+		buf.WriteString("import (\n")
+		paths := slices.Sorted(maps.Keys(gen.Imports))
+		for _, p := range paths {
+			imp := gen.Imports[p]
+			// TODO(dolmen) handle more shortcut cases
+			if imp == nil || imp.Name() == imp.Path() {
+				fmt.Fprintf(&buf, "\t%q\n", p)
+			} else {
+				fmt.Fprintf(&buf, "\t%s %q\n", imp.Name(), imp.Path())
+			}
+		}
+		buf.WriteString(")\n")
+	}
+
+	buf.WriteString("\nfunc init() {")
+	keys := slices.Collect(maps.Keys(gen.Funcs))
+	slices.Sort(keys)
+	for _, k := range keys {
+		if err := printFuncDef(&buf, gen.Funcs[k]); err != nil {
+			return "", fmt.Errorf("%s: %w", k, err)
+		}
+	}
+	buf.WriteString("}\n")
+
+	return buf.String(), nil
+}
+
+// The qualifier function is used to determine how to print package-qualified type names in the generated code.
+// It also collects the imports needed for the generated code.
+// It is used in calls to [types.TypeString].
+func (g *Generator) qualifier(other *types.Package) string {
+	if other == g.Pkg.Types {
+		return "" // Same package, no prefix needed
+	}
+	if typPkg, seen := g.Imports[other.Path()]; seen {
+		return typPkg.Name() // Already recorded import, return its name
+	}
+	g.Imports[other.Path()] = other
+	return other.Name()
+}
+
+func (g *Generator) checkTypeScope(typ types.Type) error {
+	if _, ok := typ.(*types.TypeParam); ok {
+		return fmt.Errorf("%q is a type parameter from an enclosing context", types.TypeString(typ, g.qualifier))
+	}
+
+	if ptr, ok := typ.(*types.Pointer); ok {
+		return g.checkTypeScope(ptr.Elem())
+	}
+
+	// Hint for discovering types into which we have to recurse:
+	//   go doc -all go/types | grep TypeArgs
+
+	if named, ok := typ.(*types.Named); ok {
+		obj := named.Obj()
+		// If the type is defined in the current package but not at the package level
+		if obj.Pkg() == g.Pkg.Types && obj.Parent() != g.Pkg.Types.Scope() {
+			return fmt.Errorf("%q is a local type", obj.Name())
+		}
+
+		// recurse into any type args
+		for t := range named.TypeArgs().Types() {
+			if err := g.checkTypeScope(t); err != nil {
+				return err
+			}
+		}
+	}
+
+	if ali, ok := typ.(*types.Alias); ok {
+		for t := range ali.TypeArgs().Types() {
+			if err := g.checkTypeScope(t); err != nil {
+				return err
+			}
+		}
+		return g.checkTypeScope(types.Unalias(ali))
+	}
+
+	// For debugging:
+	//log.Printf("%T %[1]s", typ)
+
+	return nil
+}
+
+func (g *Generator) add(registry string, ref string, sig *types.Signature, build func(g *Generator, registry string, sig *types.Signature) (funcCode, error)) error {
+	// Strip parameter names to maximize reuse of generated code
+	sig = stripNames(sig).(*types.Signature)
+
+	// Note: we don't use g.qualifier here to not leak imports
+	key := registry + " " + types.TypeString(sig, nil)
+
+	// Skip if we already have a function for this signature
+	if f, exists := g.Funcs[key]; exists {
+		f.refs = append(f.refs, ref)
+		return nil
+	}
+	f, err := build(g, registry, sig)
+	if err != nil {
+		return err
+	}
+	if f == nil {
+		return nil
+	}
+	if g.Funcs == nil {
+		g.Funcs = make(map[string]*funcDef)
+	}
+	g.Funcs[key] = &funcDef{
+		refs: []string{ref},
+		code: f,
+	}
+	return nil
+}
+
+func (g *Generator) genForEach(_ string, sig *types.Signature) (funcCode, error) {
+	if sig.Params().Len() == 0 {
+		return nil, errors.New("function must receive at least one parameter")
+	}
+
+	var withError, withBool bool
+	switch sig.Results().Len() {
+	case 0:
+	case 1:
+		if sig.Results().At(0).Type().String() == "error" {
+			withError = true
+			break
+		}
+		if sig.Results().At(0).Type().String() == "bool" {
+			withBool = true
+			break
+		}
+		fallthrough
+	default:
+		return nil, errors.New("only one return value allowed of type error or bool")
+	}
+
+	params := sig.Params()
+	nParams := params.Len()
+	vars := make([]string, nParams)
+	args := make([]string, nParams)
+
+	for i := range nParams {
+		p := params.At(i)
+		typ := p.Type()
+
+		// FIXME TypeScope check failures should not prevent generating code for other signatures
+		if err := g.checkTypeScope(typ); err != nil {
+			return nil, fmt.Errorf("parameter %d (type %q): %w", i, types.TypeString(typ, g.qualifier), err)
+		}
+
+		name := "v" + strconv.Itoa(i)
+		vars[i] = name + " " + types.TypeString(typ, g.qualifier)
+		args[i] = name
+	}
+
+	// TODO(dolmen) Fix this hack needed to use sqlfunc.Break
+	if withBool {
+		g.Imports["github.com/dolmen-go/sqlfunc"] = nil
+	}
+
+	code := funcCodeForEach{
+		Signature: types.TypeString(sig, g.qualifier),
+		WithError: withError,
+		WithBool:  withBool,
+		Vars:      strings.Join(vars, "\n\t\t\t"),
+		Args:      strings.Join(args, ", "),
+		ArgsPtr:   "&" + strings.Join(args, ", &"),
+	}
+
+	return &code, nil
+}
+
+type funcCodeForEach struct {
+	Signature string
+	WithError bool
+	WithBool  bool
+	Vars      string
+	Args      string
+	ArgsPtr   string
+}
+
+func (funcCodeForEach) Registry() string {
+	return "ForEach"
+}
+
+func (f funcCodeForEach) Key() string {
+	return f.Registry() + " " + f.Signature
+}
+
+func (funcCodeForEach) Template() string {
+	return alignLineNum(`
+	sqlfuncregistry.ForEach(func(rows *sql.Rows, cb {{.Signature}}) error {
+		var (
+			{{.Vars}}
+		)
+		if err := rows.Scan({{.ArgsPtr}}); err != nil {
+			return err
+		}
+{{- if .WithError}}
+		return cb({{.Args}})
+{{- else if .WithBool}}
+		if !cb({{.Args}}) {
+			return sqlfunc.Break
+		}
+		return nil
+{{- else}}
+		cb({{.Args}})
+		return nil
+{{- end}}
+	})
+`)
+}
+
+func (g *Generator) genScan(_ string, sig *types.Signature) (funcCode, error) {
+	params := sig.Params()
+	nParams := params.Len()
+	results := sig.Results()
+	nResults := results.Len()
+
+	isIn := nParams > 1
+	if nParams == 0 {
+		return nil, errors.New("function must receive at least one parameter")
+	}
+	// FIXME improve check to not be dependent on import name ("sql" here)
+	if params.At(0).Type().String() != "*database/sql.Rows" {
+		return nil, errors.New("first parameter must be *sql.Rows:" + params.At(0).Type().String())
+	}
+	if sig.Results().Len() == 0 || sig.Results().At(sig.Results().Len()-1).Type().String() != "error" {
+		return nil, errors.New("function must return exactly one value of type error")
+	}
+	if nParams > 1 && sig.Results().Len() != 1 {
+		return nil, errors.New("if function has more than one parameter, it must return exactly one value of type error")
+	}
+	if nParams == 1 && sig.Results().Len() == 1 {
+		return nil, errors.New("if function has no parameter beyond sql.Rows, it must return values beyond error")
+	}
+
+	var (
+		decls []string
+		args  []string
+	)
+
+	for i := range nParams - 1 {
+		p := params.At(i + 1) // skip first parameter which is *sql.Rows
+		typ := p.Type()
+
+		// FIXME TypeScope check failures should not prevent generating code for other signatures
+		if err := g.checkTypeScope(typ); err != nil {
+			return nil, fmt.Errorf("parameter %d (type %q): %w", i+1, types.TypeString(typ, g.qualifier), err)
+		}
+
+		if typ.String()[0] != '*' {
+			return nil, fmt.Errorf("parameter %d (type %q) must be a pointer", i+1, types.TypeString(typ, g.qualifier))
+		}
+
+		name := "v" + strconv.Itoa(i)
+		decls = append(decls, name+" "+types.TypeString(typ, g.qualifier))
+		args = append(args, name)
+	}
+
+	for i := range nResults - 1 {
+		p := results.At(i) // skip last parameter which is error
+		typ := p.Type()
+
+		// FIXME TypeScope check failures should not prevent generating code for other signatures
+		if err := g.checkTypeScope(typ); err != nil {
+			return nil, fmt.Errorf("result %d (type %q): %w", i+1, types.TypeString(typ, g.qualifier), err)
+		}
+
+		name := "v" + strconv.Itoa(i)
+		decls = append(decls, name+" "+types.TypeString(typ, g.qualifier))
+		args = append(args, name)
+	}
+
+	code := funcCodeScan{
+		Signature: types.TypeString(sig, g.qualifier),
+		Decls:     strings.Join(decls, ", "),
+		Args:      strings.Join(args, ", "),
+		ArgsPtr:   "&" + strings.Join(args, ", &"),
+		IsIn:      isIn,
+	}
+
+	return &code, nil
+}
+
+type funcCodeScan struct {
+	Signature string
+	Decls     string
+	Args      string
+	ArgsPtr   string
+	IsIn      bool
+}
+
+func (f funcCodeScan) Registry() string {
+	return "Scan"
+}
+
+func (f funcCodeScan) Key() string {
+	return f.Registry() + " " + f.Signature
+}
+
+func (funcCodeScan) Template() string {
+	return alignLineNum(`
+	sqlfuncregistry.Scan(
+		func(rows *sql.Rows{{ if .IsIn }}, {{ .Decls }}{{ end }}) {{ if .IsIn }}error{{ else }}({{ .Decls }}, err error){{ end }} {
+{{- if .IsIn}}
+			return rows.Scan({{.Args}})
+{{- else}}
+			err = rows.Scan({{.ArgsPtr}})
+			return
+{{- end}}
+		},
+	)
+`)
+}
+
+func (g *Generator) genStmt(stmtName string, sig *types.Signature) (funcCode, error) {
+	params := sig.Params()
+	nParams := params.Len()
+	results := sig.Results()
+	nResults := results.Len()
+
+	var (
+		outDecls []string
+		outNames []string
+	)
+
+	if nParams == 0 {
+		return nil, errors.New("function must receive at least one parameter")
+	}
+	// FIXME improve check to not be dependent on import name ("context" here)
+	if params.At(0).Type().String() != "context.Context" {
+		return nil, errors.New("first parameter must be context.Context:" + params.At(0).Type().String())
+	}
+	switch stmtName {
+	case "Exec":
+		const errOut = "function must return (sql.Result, error) or (error)"
+		if nResults < 1 || nResults > 2 {
+			return nil, errors.New(errOut)
+		}
+		if nResults == 2 && results.At(0).Type().String() != "database/sql.Result" {
+			return nil, errors.New(errOut)
+		}
+		if nResults == 1 {
+			outDecls = []string{"err error"}
+		}
+		if results.At(nResults-1).Type().String() != "error" {
+			return nil, errors.New(errOut)
+		}
+	case "Query":
+		if nResults != 2 {
+			return nil, errors.New("must return 2 results")
+		}
+		if results.At(0).Type().String() != "*database/sql.Rows" {
+			return nil, errors.New("function must return an *sql.Rows")
+		}
+		if results.At(1).Type().String() != "error" {
+			return nil, errors.New("function must return an error")
+		}
+	case "QueryRow":
+		if nResults < 2 {
+			return nil, errors.New("must return 2 results")
+		}
+		if results.At(results.Len()-1).Type().String() != "error" {
+			return nil, errors.New("function must return an error")
+		}
+		if results.At(0).Type().String() == "*database/sql.Row" {
+			if nResults != 2 {
+				return nil, errors.New("must return 2 results")
+			}
+		} else { // Result of row.Scan() is returned as values
+			for i := range nResults - 1 {
+				p := results.At(i) // skip last parameter which is error
+				typ := p.Type()
+
+				// FIXME TypeScope check failures should not prevent generating code for other signatures
+				if err := g.checkTypeScope(typ); err != nil {
+					return nil, fmt.Errorf("result %d (type %q): %w", i+1, types.TypeString(typ, g.qualifier), err)
+				}
+
+				name := "out" + strconv.Itoa(i)
+				outDecls = append(outDecls, name+" "+types.TypeString(typ, g.qualifier))
+				outNames = append(outNames, name)
+			}
+			outDecls = append(outDecls, "err error")
+		}
+	}
+
+	var (
+		inDecls    []string
+		inNames    []string
+		firstParam = 1
+		txType     types.Type
+	)
+	if nParams > 1 {
+		typ1 := params.At(1).Type()
+		if typ, ok := typ1.(*types.Pointer); ok {
+			typ1 = typ.Elem()
+		}
+		// Look for a type that implements interface { StmtContext() }
+		if typ, ok := typ1.(interface {
+			Method(i int) *types.Func
+			NumMethods() int
+		}); ok && typ.NumMethods() > 0 {
+			for i := range typ.NumMethods() {
+				if typ.Method(i).Name() == "StmtContext" {
+					txType = params.At(1).Type()
+					firstParam++
+					break
+				}
+			}
+		}
+
+		for i := range nParams - firstParam {
+			p := params.At(i + firstParam) // skip first parameter which is *sql.Rows
+			typ := p.Type()
+
+			// FIXME TypeScope check failures should not prevent generating code for other signatures
+			if err := g.checkTypeScope(typ); err != nil {
+				return nil, fmt.Errorf("parameter %d (type %q): %w", i+firstParam, types.TypeString(typ, g.qualifier), err)
+			}
+
+			name := "in" + strconv.Itoa(i)
+			inDecls = append(inDecls, name+" "+types.TypeString(typ, g.qualifier))
+			inNames = append(inNames, name)
+		}
+	}
+
+	code := funcCodeStmt{
+		StmtName:  stmtName,
+		Signature: types.TypeString(sig, g.qualifier),
+		TxType: func() string {
+			if txType == nil {
+				return ""
+			}
+			return types.TypeString(txType, g.qualifier)
+		}(),
+		InDecls: strings.Join(inDecls, ", "),
+		InNames: strings.Join(inNames, ", "),
+		OutType: func() string {
+			if len(outDecls) != 0 {
+				return ""
+			}
+			return types.TypeString(results.At(0).Type(), g.qualifier)
+		}(),
+		OutDecls:      strings.Join(outDecls, ", "),
+		OutArgsPtr:    "&" + strings.Join(outNames, ", &"),
+		WithoutResult: stmtName == "Exec" && nResults == 1, // Exec
+	}
+
+	return &code, nil
+}
+
+type funcCodeStmt struct {
+	StmtName      string
+	Signature     string
+	TxType        string
+	InDecls       string
+	InNames       string
+	OutType       string
+	OutDecls      string
+	OutArgsPtr    string
+	WithoutResult bool
+}
+
+func (f funcCodeStmt) Registry() string {
+	return f.StmtName
+}
+
+func (f funcCodeStmt) Key() string {
+	return f.Registry() + " " + f.Signature
+}
+
+func (funcCodeStmt) Template() string {
+	return alignLineNum(`
+	sqlfuncregistry.{{.StmtName}}[{{.Signature}}](
+		func(stmt *sql.Stmt, fnPtr any) {
+			*(fnPtr.(*{{.Signature}})) = func(ctx context.Context{{if .TxType}}, tx {{.TxType}}{{end}}{{if .InDecls}}, {{.InDecls}}{{end}}) ({{ if .OutDecls }}{{.OutDecls}}{{else}}{{.OutType}}{{ if ne .StmtName "QueryRow" }}, error{{end}}{{end}}) {
+{{- if .TxType }}
+				stmtTx := stmt
+				if tx != nil {
+					stmtTx = tx.StmtContext(ctx, stmt)
+					defer stmtTx.Close()
+				}
+{{- end }}
+{{- if .OutDecls }}
+				{{ if .WithoutResult }}_, {{end}}err = stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}}){{ if eq .StmtName "QueryRow" }}.Scan({{ .OutArgsPtr }}){{end}}
+				return
+{{- else }}
+				return stmt{{ if .TxType }}Tx{{ end }}.{{.StmtName}}Context(ctx{{if .InNames}}, {{ .InNames }}{{end}})
+{{- end}}
+			}
+		},
+	)
+`)
+}
